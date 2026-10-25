@@ -116,6 +116,10 @@ The report contains protocol structures, command identifiers, TLV definitions, a
 
 It also identifies unresolved questions and areas where further research is needed.
 
+**[WPP Command & TLV Reference](docs/COMMAND_REFERENCE.md)**
+
+A quick-reference guide to commands, data structures, authentication, provisioning, and measurement transfers.
+
 ## Research Methodology
 
 The investigation used commercially available, unmodified Withings devices and standard Bluetooth development tools.
