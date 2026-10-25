@@ -93,6 +93,117 @@ class DecoderTests(unittest.TestCase):
         self.assertNotIn('json',redacted)
         self.assertEqual(redacted['assembled_length'],len(source))
 
+    def test_ownership_credentials_public_redaction(self):
+        # Entirely synthetic account ID and credentials.
+        account_id = 0x12345678
+        kl = b'K' * 32
+        advertiser_key = b'A' * 32
+
+        ownership = struct.pack('>I', account_id) + bytes([len(kl)]) + kl
+        advertiser = bytes([len(advertiser_key)]) + advertiser_key
+
+        decoded = parse_wpp(
+            frame(0x0134, [
+                (0x0135, ownership),
+                (0x0136, advertiser),
+            ]),
+            private=False,
+        )
+
+        self.assertEqual(decoded['command'], '0x0134')
+        self.assertTrue(decoded['tlv_complete'])
+
+        account = decoded['tlvs'][0]
+        key = decoded['tlvs'][1]
+
+        self.assertEqual(account['type'], '0x0135')
+        self.assertEqual(account['length'], 37)
+        self.assertEqual(account['kl_length'], 32)
+        self.assertTrue(account['structure_valid'])
+        self.assertEqual(account['account_id'], '<redacted>')
+        self.assertEqual(account['kl'], '<redacted>')
+
+        self.assertEqual(key['type'], '0x0136')
+        self.assertEqual(key['length'], 33)
+        self.assertEqual(key['key_length'], 32)
+        self.assertTrue(key['structure_valid'])
+        self.assertEqual(key['advertiser_key'], '<redacted>')
+
+        public = json.dumps(decoded)
+
+        self.assertNotIn('12345678', public)
+        self.assertNotIn('KKKKKKKK', public)
+        self.assertNotIn('AAAAAAAA', public)
+        self.assertNotIn('value_hex', public)
+        self.assertNotIn('payload_hex', public)
+
+    def test_ownership_credentials_private_bytes(self):
+        account_id = 0x12345678
+        kl = b'K' * 32
+        advertiser_key = b'A' * 32
+
+        ownership = struct.pack('>I', account_id) + bytes([32]) + kl
+        advertiser = bytes([32]) + advertiser_key
+
+        decoded = parse_wpp(
+            frame(0x0134, [
+                (0x0135, ownership),
+                (0x0136, advertiser),
+            ]),
+            private=True,
+        )
+
+        account = decoded['tlvs'][0]
+        key = decoded['tlvs'][1]
+
+        self.assertEqual(account['value_hex'], ownership.hex())
+        self.assertEqual(key['value_hex'], advertiser.hex())
+
+        self.assertTrue(account['structure_valid'])
+        self.assertTrue(key['structure_valid'])
+
+        self.assertEqual(account['kl_length'], 32)
+        self.assertEqual(key['key_length'], 32)
+
+    def test_ownership_credentials_malformed_lengths(self):
+        # Declared internal lengths disagree with actual TLV lengths.
+        malformed_account = (
+            struct.pack('>I', 0x12345678)
+            + bytes([32])
+            + b'K' * 10
+        )
+
+        malformed_key = bytes([32]) + b'A' * 10
+
+        decoded = parse_wpp(
+            frame(0x0134, [
+                (0x0135, malformed_account),
+                (0x0136, malformed_key),
+            ]),
+            private=False,
+        )
+
+        self.assertTrue(decoded['tlv_complete'])
+
+        account = decoded['tlvs'][0]
+        key = decoded['tlvs'][1]
+
+        self.assertFalse(account['structure_valid'])
+        self.assertFalse(key['structure_valid'])
+
+        self.assertEqual(account['kl_length'], 32)
+        self.assertEqual(key['key_length'], 32)
+
+        # Truncated TLVs must also be handled safely.
+        short_fields, complete = tlvs(
+            struct.pack('>HH', 0x0135, 2) + b'\x01\x02'
+            + struct.pack('>HH', 0x0136, 0)
+        )
+
+        self.assertTrue(complete)
+        self.assertFalse(short_fields[0]['structure_valid'])
+        self.assertFalse(short_fields[1]['structure_valid'])
+
     def test_cli_synthetic_capture(self):
         with tempfile.TemporaryDirectory() as d:
             d=Path(d)

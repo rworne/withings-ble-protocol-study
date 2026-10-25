@@ -107,6 +107,36 @@ host_proof = hashlib.sha1(device_challenge + mac_ascii + kl_ascii).digest()
 
 Prior analysis reported three exact digest matches in BeamO traces. The supplied Swift code additionally verifies the reciprocal device proof. This mechanism requires an **authorized, existing association key**; it does not defeat or bypass encryption.
 
+#### BPM Connect: `0x0128` authentication observations
+
+During repeated BPM Connect pairing attempts, the device initiated an existing-association authentication exchange using WPP command `0x0128`.
+
+The captured sequence was:
+
+| Step | Direction | Command | Observed contents |
+|---|---|---|---|
+| 1 | Device → host | `0x0128` | TLV `0x0122` (35 bytes) |
+| 2 | Host → device | `0x0128` | TLVs `0x012A` (6 bytes), `0x0123` (21 bytes), and `0x0122` (35 bytes) |
+| 3 | Device → host | `0x0100` | Error TLV `0x0110`, reporting `0x0128` error `−6` |
+| 4 | Host → device | `0x0110` | Subsequent command |
+| 5 | Device → host | `0x0100` | Error TLV `0x0110`, reporting `0x0110` error `−5` |
+
+Captured authentication error:
+
+```text
+01 01 00 00 0A 01 10 00 06 01 28 FF FF FF FA
+```
+
+The `0x0128` response reports signed error code `−6`.
+
+The subsequent `0x0110` response reports signed error code `−5`.
+
+Both errors were returned promptly. The official application remained on its configuration screen until a later application-level timeout.
+
+**Interpretation:** The precise cause of error `−6` remains unresolved. The captures do not establish that the association key was incorrect or that a BLE transport timeout caused the authentication failure.
+
+A later connection in the longer BPM Connect capture successfully completed provisioning without a visible repeat of this `0x0128` exchange on that connection.
+
 ### `0x09B2` / `0x09C1` — initial provisioning negotiation
 
 | Exchange | TLV | Observed structure | Status |
@@ -119,11 +149,67 @@ Prior analysis reported three exact digest matches in BeamO traces. The supplied
 
 The official BPM Vision Wi-Fi setup capture included three `0x09B2` stages; the working independent BLE-only path used two. **These are not `0x0128` exchanges.** Avoid asserting a cryptographic primitive for the opaque fields without proof.
 
+---
+
+#### Body Smart: `0x09C1` behavior
+
+During initial provisioning, Body Smart responds to the empty `0x09C1` request with a WPP error rather than the `0x0961` and `0x09D3` TLVs observed on BeamO and BPM Vision.
+
+Request:
+
+```text
+01 09 C1 00 00
+```
+
+Response:
+
+```text
+01 01 00 00 0A 01 10 00 06 09 C1 FF FF FF FD
+```
+
+The response contains error TLV `0x0110`, identifying command `0x09C1` and reporting signed error code `−3`.
+
+The provisioning sequence continues after this response.
+
+**Observed compatibility difference:** BeamO and BPM Vision successfully respond to `0x09C1`, while the captured Body Smart firmware returns `−3`. This does not establish whether the difference is caused by firmware version, device capabilities, or provisioning state.
+
 ## 4. Provisioning and feature configuration
 
 ### `0x0134` — association keys
 
-Installs an owner identifier and association credentials, including the KL and advertiser key. **Payload is sensitive:** do not include unredacted values in public examples. An owner ID is **not necessarily** the first user ID.
+Installs the Withings account identifier and device association credentials, including the KL and advertiser key.
+
+The observed request contains two TLVs:
+
+| TLV | Length | Contents |
+|---|---:|---|
+| `0x0135` | 37 bytes | Account ID followed by length-prefixed KL |
+| `0x0136` | 33 bytes | Length-prefixed advertiser key |
+
+#### TLV `0x0135` — account identifier and KL
+
+| Offset | Size | Format | Description |
+|---|---:|---|---|
+| 0 | 4 | Big-endian `uint32` | Withings account ID |
+| 4 | 1 | `uint8` | KL length |
+| 5 | Variable | ASCII | KL |
+
+In the analyzed captures, the KL is 32 ASCII bytes, preceded by the length byte `0x20`.
+
+**The account ID is distinct from the user ID and device ID.** These identifiers must not be used interchangeably.
+
+#### TLV `0x0136` — advertiser key
+
+| Offset | Size | Format | Description |
+|---|---:|---|---|
+| 0 | 1 | `uint8` | Advertiser-key length |
+| 1 | Variable | ASCII | Advertiser key |
+
+In the analyzed captures, the advertiser key is 32 ASCII bytes, preceded by the length byte `0x20`.
+
+#### Security considerations
+
+The KL and advertiser key are sensitive association credentials. Never include actual credentials or unredacted ownership packets in public documentation, test fixtures, or examples.
 
 ### `0x010D` — primary JSON configuration
 
@@ -138,7 +224,7 @@ Captured configurations contain fields such as:
 }
 ```
 
-**The JSON above is a schematic field map, not a captured packet or a valid provisioning payload.** Preserve all unknown keys and original types in an actual extractor. Keep owner IDs, user IDs, and target IDs consistently remapped while preserving original equality relationships. Global target `0` remains `0`.
+**The JSON above is a schematic field map, not a captured packet or a valid provisioning payload.** Preserve all unknown keys and original types in an actual extractor. Keep account IDs, user IDs, and target IDs consistently remapped while preserving their respective identity relationships. Do not assume account IDs and user IDs are interchangeable. Global target `0` remains `0`.
 
 ### `0x09C3` — secondary settings
 
