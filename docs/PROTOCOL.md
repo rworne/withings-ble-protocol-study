@@ -418,11 +418,11 @@ The accompanying archive contains **16 session rows, 40 numeric-measurement rows
 
 **ECG example:** descriptor `00 0D 01 F4 00 02 10 02`, 60,000-byte payload. The supplied decoder treats it as **500 sample frames/s**, two interleaved **signed little-endian 16-bit** streams, four bytes/frame, yielding **15,000 frames / 30 seconds**. The channel meanings (e.g., raw versus filtered) and conversion to millivolts are **not established**. The figure plots both interleaved streams for the first five seconds from one actual recovered payload; the vertical axis is uncalibrated sample counts, **not a clinical ECG interpretation**.
 
-![Recovered BeamO ECG, both stored streams, five-second excerpt](beamo_ecg_two_streams.png)
+![Recovered BeamO ECG, both stored streams, five-second excerpt](../beamo_ecg_two_streams.png)
 
 **Stethoscope example:** descriptor `00 02 0F A0 01 01 08 01`, 80,000-byte payload. The supplied audio decoder treats it as **G.711 A-law, mono, 4,000 samples/s**: 80,000 encoded samples / 4,000 = **20 seconds**. The figure shows only the decoded waveform envelope (min/max per bucket); no audio, identifying information, medical labels, or raw recordings are published.
 
-![Recovered BeamO stethoscope waveform, image only](beamo_stethoscope_waveform_example.png)
+![Recovered BeamO stethoscope waveform, image only](../beamo_stethoscope_waveform_example.png)
 
 The figures are produced from the **actual recovered SQLite `signals.payload` bytes**, not simulated or redrawn waveforms. The images omit names, hardware identifiers, user IDs, and timestamps. They are technical decoding examples, **not diagnostic evidence**. The original SQLite database and its WAL/SHM files should **not** be published because they contain personal health data and identifiers.
 
