@@ -231,6 +231,38 @@ The official app sends a JSON configuration containing `body.ind` (device settin
 
 **Illustrative schema only:** values above are sanitized examples, not a captured message or recommended configuration. Other captured fields include `cr`, `syp.utc`, `syp.fwupd`, `duration`, and `creation_time`. Preserve unknown fields verbatim during analysis rather than deleting them or assigning speculative meanings.
 
+### PacketLogger-validated `0x010D` logical transfer framing (24 October 2026)
+
+**Evidence:** PacketLogger Analyzer v1.1 output for a BPM Vision Wi-Fi provisioning capture and `beamo-setup(1).pklg`. This section describes observed **on-wire framing**; it does not establish that every firmware uses the same transfer format or that all reconstructed content is JSON.
+
+A configuration transfer consists of multiple **independently framed WPP `0x010D` messages**, each carrying a `0x0112` TLV, followed by a `0x010D` message containing an empty `0x0100` TLV and a device acknowledgment using command `0x010D` with a zero-length payload. These messages are **application-level chunks**, not L2CAP fragments.
+
+```text
+WPP frame: 01 | command BE16 | payload_length BE16 | TLVs...
+Data:      01 01 0D 00 44 | 01 12 00 40 | [64-byte TLV value]
+Terminator:01 01 0D 00 04 | 01 00 00 00
+Reply:     01 01 0D 00 00
+```
+
+In the analyzed captures, each `0x0112` TLV value starts with a **one-byte content-length prefix**, followed by that number of content bytes. Thus a 64-byte TLV value holds 63 content bytes. A decoder should validate that the prefix agrees with the remaining value length before appending content. Concatenate content bytes **in capture order**, scoped to the connection handle and direction; finalize on the empty `0x0100` terminator and associate the subsequent device response. Preserve individual frames and record numbers alongside the reconstructed logical transfer.
+
+| Capture | Handle | Data chunks | Wire TLV bytes | Assembled content | Terminator | Device acknowledgment | JSON status |
+|---|---|---:|---:|---:|---|---|---|
+| BPM Vision Wi-Fi provisioning | `0x0058` | 11 | 642 | **631 bytes** | Record 4113 | Record 4168 | Valid JSON in private reconstruction |
+| BeamO provisioning (`beamo-setup(1).pklg`) | `0x005E` | 6 | 350 | **344 bytes** | Record 7142 | Record 7151 | **Not established** (`json_valid: null` in analyzer output) |
+
+BPM Vision's data-bearing messages span records **4064–4107**; BeamO's span **7122–7140**. The first BPM Vision TLV has length 64 and the final one length 2. BeamO's six TLV lengths are 64, 64, 64, 64, 64, and 30. These lengths are **TLV value lengths**, including the one-byte prefix; they must not be mistaken for JSON/content lengths.
+
+**Important distinctions and limitations:**
+
+- The BPM Vision reconstruction was checked as valid JSON in a private analysis. The public redacted analyzer report alone does not expose or independently prove that JSON structure.
+- The BeamO reconstruction demonstrates chunk aggregation and acknowledgment, **not** a successfully decoded JSON document. Do not invent fields or assume a particular encoding.
+- A response establishes that an acknowledgment was observed; it does not alone prove that every configuration setting took effect.
+- PacketLogger record numbers are local to each capture, not protocol sequence numbers. Transport-reassembly warnings elsewhere in a capture should be retained and investigated, not silently discarded.
+- Keep raw captures, Wi-Fi credentials, owner/user identifiers, authentication keys, and unredacted configuration payloads out of the public repository.
+
+See [`docs/examples/BEAMO_PROVISIONING.md`](examples/BEAMO_PROVISIONING.md) for the BeamO record-by-record example and `tools/packetlogger/README.md` for analyzer usage.
+
 ### Secondary configuration: `0x09C3`
 
 - TLV `0x0145`: four-byte big-endian target ID (`0` = global; nonzero = user ID).
@@ -334,13 +366,13 @@ The signal `0x0116` metadata's `parentID` (bytes 19–22) links to the inventory
 
 The accompanying archive contains **16 session rows, 40 numeric-measurement rows, 32 recovered binary signals, and 48 stored inventory packets** (counts observed when the report was prepared). Signals include several distinct eight-byte descriptors; **do not treat every signal as ECG or audio**.
 
-**ECG example:** descriptor `00 0D 01 F4 00 02 10 02`, 60,000-byte payload. The supplied decoder treats it as **500 sample frames/s**, two interleaved **signed little-endian 16-bit** streams, four bytes/frame, yielding **15,000 frames / 30 seconds**. The channel meanings (e.g., raw versus filtered) and conversion to millivolts are **not established**. The figure plots the first five seconds from one actual recovered payload; the vertical axis is uncalibrated sample counts, **not a clinical ECG interpretation**.
+**ECG example:** descriptor `00 0D 01 F4 00 02 10 02`, 60,000-byte payload. The supplied decoder treats it as **500 sample frames/s**, two interleaved **signed little-endian 16-bit** streams, four bytes/frame, yielding **15,000 frames / 30 seconds**. The channel meanings (e.g., raw versus filtered) and conversion to millivolts are **not established**. The figure plots both interleaved streams for the first five seconds from one actual recovered payload; the vertical axis is uncalibrated sample counts, **not a clinical ECG interpretation**.
 
-![Recovered BeamO ECG — raw and filtered candidates](../beamo_ecg_two_streams.png)
+![Recovered BeamO ECG, both stored streams, five-second excerpt](beamo_ecg_two_streams.png)
 
 **Stethoscope example:** descriptor `00 02 0F A0 01 01 08 01`, 80,000-byte payload. The supplied audio decoder treats it as **G.711 A-law, mono, 4,000 samples/s**: 80,000 encoded samples / 4,000 = **20 seconds**. The figure shows only the decoded waveform envelope (min/max per bucket); no audio, identifying information, medical labels, or raw recordings are published.
 
-![Recovered BeamO stethoscope waveform](../beamo_stethoscope_waveform_example.png)
+![Recovered BeamO stethoscope waveform, image only](beamo_stethoscope_waveform_example.png)
 
 The figures are produced from the **actual recovered SQLite `signals.payload` bytes**, not simulated or redrawn waveforms. The images omit names, hardware identifiers, user IDs, and timestamps. They are technical decoding examples, **not diagnostic evidence**. The original SQLite database and its WAL/SHM files should **not** be published because they contain personal health data and identifiers.
 
