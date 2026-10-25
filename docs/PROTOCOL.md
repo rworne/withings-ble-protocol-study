@@ -109,7 +109,7 @@ The characteristic carries WPP requests/responses using ATT writes and notificat
 
 Unassociated advertisements have been observed with service data under UUID `0xFD77`. The device name convention `BeamO A8`, `BeamO C8`, and `BPM Vision 2E` matches the **last byte of each respective MAC** in the observed devices. This is a supported naming pattern, **not** proof that every Withings product follows it or that the name cannot change.
 
-Distinguish: BLE hardware MAC, CoreBluetooth peripheral UUID, Withings cloud/device ID, WPP owner ID, and per-user IDs. These are **not interchangeable**.
+Distinguish: BLE hardware MAC, CoreBluetooth peripheral UUID, Withings cloud/device ID, Withings account ID (encoded in WPP TLV `0x0135`), and per-user IDs. These are **not interchangeable**.
 
 ## 5. WPP framing and conversation reconstruction
 
@@ -184,13 +184,63 @@ These are **separate** from `0x0128` and must not be conflated.
 
 The full official BPM Vision Wi-Fi setup contained **three** `0x09B2` stages (before Wi-Fi, after Wi-Fi, after ownership). The successful independent **BLE-only** provisioning flow used **two** (`0x09B2` before and after ownership installation). The extra official-app stage is not established as a BLE-only requirement.
 
+### Cross-device authentication observations
+
+The investigated Withings devices share WPP framing and several provisioning commands, but their observed authentication sequences are not identical.
+
+| Device | `0x0128` | `0x09B2` | `0x09C1` |
+|---|---|---|---|
+| BPM Connect | Observed; error `−6` in repeated pairing attempts | Not observed in analyzed captures | Not observed in analyzed captures |
+| Body Smart | Not established | Observed | Error `−3`; provisioning continued |
+| BeamO | Observed in existing-association captures | Observed | Successful response |
+| BPM Vision | Observed in existing-association captures | Observed | Successful response |
+
+#### Body Smart
+
+During initial provisioning, Body Smart returned error `−3` in response to an empty `0x09C1` request. The provisioning sequence continued afterward.
+
+BeamO and BPM Vision instead returned TLVs `0x0961` and `0x09D3` in their captured `0x09C1` exchanges.
+
+This demonstrates a device-specific difference in observed behavior. It does not establish whether the difference is attributable to firmware, device capabilities, or association state.
+
+#### BPM Connect
+
+Repeated BPM Connect pairing attempts included a `0x0128` challenge/response exchange. The device returned error `−6` following the host authentication response.
+
+A subsequent `0x0110` command received error `−5`.
+
+Both responses were prompt. The official application remained on its configuration screen until a later application-level timeout. The cause of error `−6` remains unresolved.
+
+In a later connection from the longer capture, BPM Connect successfully completed provisioning without a visible repeat of `0x0128` on that connection.
+
+#### Interpretation
+
+These observations establish differences in captured authentication behavior, not distinct formal WPP protocol versions.
+
+The presence or absence of a particular command may depend on device firmware, association state, and provisioning workflow. A command not observed in a capture must not automatically be classified as unsupported.
+
+Detailed command structures and captured error responses are documented in `docs/COMMAND_REFERENCE.md`.
+
 ## 8. Ownership and BLE-only provisioning
 
 ### `0x0134`: association-key installation
 
-Ownership installation supplies an owner identifier, KL, and advertiser key. For local experiments, these were generated afresh with cryptographically secure randomness rather than copied from an official account. The installation was followed by a further negotiation exchange and configuration.
+Ownership installation supplies the Withings account ID, KL, and advertiser key.
 
-**Never confuse owner ID with user ID.** In a captured setup, the owner can equal **any** one user (often the first) or no configured user. An extractor should map each distinct original identity to a fresh unique random ID while preserving all observed equality relationships across `0x0134`, `0x010D`, and `0x09C3`. Global target `0` is not a user and must remain zero. Generate once per experimental configuration and reuse consistently.
+The captured `0x0134` request contains two TLVs:
+
+| TLV | Length | Description |
+|---|---:|---|
+| `0x0135` | 37 bytes | Four-byte big-endian account ID, one-byte KL length, and 32-byte ASCII KL |
+| `0x0136` | 33 bytes | One-byte advertiser-key length and 32-byte ASCII advertiser key |
+
+The account ID is distinct from the user ID and physical device ID. These identifiers must not be used interchangeably.
+
+In independent BLE-only provisioning experiments, fresh identifiers and credentials were generated rather than reusing credentials from an official account. The installation was followed by further negotiation and configuration.
+
+For sanitized captures, maintain separate mappings for Withings account IDs, per-user IDs, and device IDs. Replace each original identifier consistently wherever it appears, preserving repeated references within its identifier category. Do not infer relationships between identifiers merely because their numeric values happen to match. Global target `0` remains `0`.
+
+The detailed binary layouts are documented in `docs/COMMAND_REFERENCE.md`.
 
 ### Working BLE-only sequence
 
@@ -199,7 +249,7 @@ BLE discovery/connect
   → 0x0101 identification
   → 0x09B2 challenge/negotiation
   → 0x09C1 negotiation continuation
-  → 0x0134 owner ID + KL + advertiser key
+  → 0x0134 account ID + KL + advertiser key
   → 0x09B2 post-ownership negotiation
   → 0x010D primary JSON configuration
   → 0x0108 region

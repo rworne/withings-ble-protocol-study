@@ -51,7 +51,32 @@ def tlvs(data, private=False):
         if o+n>len(data):return items,False
         val=data[o:o+n];o+=n
         d={'type':f'0x{t:04X}','length':n}
-        if t==0x09D5 and n>=12:
+
+        if t==0x0135:
+            d['meaning']='account identifier and KL'
+            if n>=5:
+                kl_length=val[4]
+                d['account_id_format']='big-endian uint32'
+                d['kl_length']=kl_length
+                d['structure_valid']=(n==5+kl_length)
+            else:
+                d['structure_valid']=False
+            if not private:
+                d['account_id']='<redacted>'
+                d['kl']='<redacted>'
+
+        elif t==0x0136:
+            d['meaning']='advertiser key'
+            if n>=1:
+                key_length=val[0]
+                d['key_length']=key_length
+                d['structure_valid']=(n==1+key_length)
+            else:
+                d['structure_valid']=False
+            if not private:
+                d['advertiser_key']='<redacted>'
+
+        elif t==0x09D5 and n>=12:
             d['feature_id']=int.from_bytes(val[8:10],'big');d['feature_value']=int.from_bytes(val[10:12],'big')
         elif t==0x0116 and n==23 and private:
             d['signal_id']=int.from_bytes(val[:4],'big');d['parent_measurement_id']=int.from_bytes(val[19:23],'big')

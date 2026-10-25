@@ -28,6 +28,8 @@ The research focuses on documenting actual protocol exchanges and distinguishing
 |---|---|
 | Withings BeamO | Authentication, provisioning, measurements, ECG, digital stethoscope, signal synchronization |
 | Withings BPM Vision | Pairing, authentication, provisioning, configuration, feature negotiation |
+| Withings BPM Connect | Pairing, existing-association authentication, ownership provisioning, configuration |
+| Withings Body Smart | Authentication, provisioning, user configuration, measurement-related settings |
 | Withings Body Scan 2 | BLE protocol investigation and device communication |
 
 Protocol behavior may vary by device model, firmware version, and configuration.
@@ -50,14 +52,18 @@ The investigation identified and reproduced a challenge-response authentication 
 
 The documented implementation uses device-specific credentials and SHA-1 challenge-response calculations.
 
-Separate exchanges involved in initial provisioning remain under investigation.
+Initial provisioning uses separate negotiation commands, including `0x09B2` and `0x09C1`. Captured behavior differs between devices: BeamO and BPM Vision successfully respond to `0x09C1`, while Body Smart returns error `−3` and continues provisioning.
+
+BPM Connect captures also demonstrate an existing-association `0x0128` authentication exchange that returned error `−6` during repeated pairing attempts. The cause remains unresolved.
+
+These observations establish device-specific differences in authentication behavior without establishing distinct formal WPP protocol versions.
 
 ### Device Provisioning
 
 The investigation documents observed commands for:
 
 - Device identification.
-- Ownership credential installation.
+- Ownership credential installation (`0x0134`), including the Withings account ID, KL, and advertiser key.
 - User configuration.
 - Primary device configuration.
 - Secondary per-user configuration.
@@ -67,6 +73,10 @@ The investigation documents observed commands for:
 Experiments demonstrated that device-level and per-user feature settings can affect which functions are available.
 
 The meaning of some feature identifiers remains unknown.
+
+Analysis of captured provisioning traffic established that the four-byte identifier in TLV `0x0135` is the Withings account ID, distinct from the user ID and device ID. TLV `0x0136` carries the advertiser key.
+
+The detailed binary structures are documented in `docs/COMMAND_REFERENCE.md`.
 
 ### Measurement Retrieval
 
