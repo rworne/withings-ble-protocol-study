@@ -192,3 +192,5 @@ This research is not intended for medical diagnosis, treatment, or clinical deci
 Withings and associated product names are trademarks of their respective owners.
 
 This project is independent and unaffiliated with Withings.
+
+For the complete research disclaimer and experimental methodology, see [DISCLAIMER.md](DISCLAIMER.md).
