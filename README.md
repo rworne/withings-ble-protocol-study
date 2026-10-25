@@ -189,6 +189,14 @@ Contributors should:
 
 Do not submit private credentials, personal measurement databases, or unsanitized Bluetooth captures.
 
+## Acknowledgments
+
+This project benefited from the publicly available research and source code of the **withings-local** project, particularly its work on Withings BLE communication, authentication, and protocol structures.
+
+That work provided valuable reference material during the investigation. The findings presented here were further developed and validated through independent BLE packet captures, protocol analysis, and experiments with actual Withings devices.
+
+Thanks to the withings-local contributors for sharing their work with the community.
+
 ## License
 
 Source code released in this repository is licensed under the **MIT License**. See [LICENSE](LICENSE).
