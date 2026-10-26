@@ -2,7 +2,7 @@
 
 > **Community research report · Updated 24 October 2026**  
 > **Status:** Experimental, partially decoded; reproducible observations and open questions  
-> **Reference devices:** Withings BeamO (two units, advertised suffixes A8 and C8) and BPM Vision (WPM07)  
+> **Reference devices:** Withings Body Scan 2, BeamO (two units, advertised suffixes A8 and C8), BPM Connect, and BPM Vision (WPM07)  
 > **Code license:** MIT License (see [License](#license-and-disclaimer))  
 > **Scope:** Local BLE communications. Wi-Fi provisioning is analyzed **offline only**; the independent provisioning implementation deliberately does not configure Wi-Fi or contact Withings servers.
 
@@ -59,34 +59,16 @@ This was an educational interoperability experiment conducted with devices under
 
 Authentication experiments used two distinct categories of cryptographic material.
 
-For TLS communication with the Body Scan 2, valid, pre-existing authentication material associated with the researcher's personally owned device was used. This material was obtained locally, without requesting credentials from Withings or using its cloud or developer APIs. The acquisition method, storage location, and actual credential values are intentionally excluded from this publication.
+The Body Scan 2 TLS and WPP authentication experiments used a valid KL (authentication key) and advertising key associated with the device. The acquisition method, source, storage location, and actual credential values are intentionally excluded from this publication.
 
-For the remaining BLE authentication and provisioning experiments, cryptographic keys were generated independently using random values. These experiments did not require extracting or obtaining pre-existing device authentication keys from Withings.
+All independent BLE communication, TLS negotiation, authentication, and measurement retrieval were performed locally, without using Withings cloud services or developer APIs.
 
-All independent BLE protocol experiments were conducted locally. The official Withings application was used separately to observe normal device behavior and validate measurement data.
+The experiments demonstrated successful authentication and retrieval of stored measurements. Initial pairing and provisioning of a Body Scan 2 using independently generated credentials have not yet been investigated. Consequently, compatibility with randomly generated keys remains unverified.
 
+The official Withings application was used separately to observe normal device behavior and validate retrieved measurements.
 At the conclusion of the experiments, devices were **restored to factory condition and re-provisioned according to Withings requirements**. Experimental changes should not be interpreted as an endorsed configuration or a statement about clinical accuracy.
 
 **Sensitive data:** Packet captures can contain MAC addresses, owner/user IDs, association keys, Wi-Fi SSIDs/passwords, names, and health measurements. Publish sanitized examples only; do not publish raw private captures or secret-bearing TLVs. The private analyzer mode is for local examination, not public distribution.
-
-### Body Scan 2: locally authenticated TLS/WPP measurement retrieval (October 2026)
-
-**Evidence: experimentally tested on one Body Scan 2 (model 19); not yet established as universal across models or firmware.**
-
-A local BLE client connected to the Withings service `00000000-0000-5749-5448-494e47530000`, using characteristic `00000005-0000-5749-5448-494e47530000` for the observed session. After a device-specific pre-TLS initialization, the device initiated a TLS handshake and the local client operated as the TLS server. The negotiated connection was TLS 1.3 with `TLS_CHACHA20_POLY1305_SHA256`.
-
-Inside TLS, the existing-association WPP exchange succeeded: identification/probe `0x0101`, challenge `0x0128`, challenge response, and an authenticated `0x0101` response. Authentication used valid, pre-existing device credentials. **The credentials were not supplied directly by Withings.** No Withings cloud API, developer API, or remote authentication service was used for this independent BLE experiment. Credential acquisition, provenance, storage location, and values are deliberately outside the published scope. The separate official-app synchronization used for validation is not represented as an offline app operation.
-
-The following authenticated requests were sent (WPP framing and 16-bit fields are big-endian):
-
-| Operation | WPP bytes | Observation |
-| --- | --- | --- |
-| GET_STATE | `01 01 0F 00 06 01 14 00 02 00 00` | `0x010F` reply containing `0x0114` and `0x0115` |
-| GET_ALL | `01 01 0F 00 06 01 14 00 02 01 00` | Multi-frame `0x010F` measurement transfer |
-
-The GET_ALL response contained repeated `0x0116` session/group metadata, `0x0117` numeric measurement values, `0x0993` attributes, and other observed TLVs (`0x012B`, `0x0149`, `0x014A`, `0x09B9`). An empty `0x0100` TLV was observed at the end of the transfer. The presence of these fields is confirmed; their meaning may depend on device and context. The scale returned decoded weight `104.143 kg` in the test session, and additional body composition, segmental, bioimpedance, and cardiovascular values. Do not infer proprietary type labels from numerical magnitude alone.
-
-The independently retrieved values were compared with local SQLite records after the official application synchronized the same session, including matching numerical values. The independent client did **not** send an explicit measurement acknowledgment, deletion, or sync-completion command. This does not prove that GET_ALL is free of all persistent side effects.
 
 ## 3. Tools, captures, and repeatable methodology
 
@@ -396,6 +378,27 @@ To retrieve the inventory, send WPP command `0x010F` containing TLV `0x0114`, va
 For inventory `0x0116`, the code reads a four-byte big-endian user ID at offsets **6–9** and a four-byte big-endian parent/session ID from the **last four bytes**. This is a separate `0x0116` layout from the 23-byte signal metadata described below; **interpret TLVs in their command context**.
 
 A numeric `0x0117` is eight bytes: signed BE `int32` mantissa at 0–3, BE `uint16` measurement type at 4–5, and signed BE `int16` base-10 exponent at 6–7. Value = mantissa × 10^exponent. Preserve the raw bytes and unknown type codes; do not synthesize missing results.
+
+#### Body Scan 2: locally authenticated TLS/WPP measurement retrieval (October 2026)
+
+**Evidence: experimentally tested on one Body Scan 2 (model 19); not yet established as universal across models or firmware.**
+
+A local BLE client connected to the Withings service `00000000-0000-5749-5448-494e47530000`, using characteristic `00000005-0000-5749-5448-494e47530000` for the observed session. After a device-specific pre-TLS initialization, the device initiated a TLS handshake and the local client operated as the TLS server. The negotiated connection was TLS 1.3 with `TLS_CHACHA20_POLY1305_SHA256`.
+
+Inside TLS, the existing-association WPP exchange succeeded: identification/probe `0x0101`, challenge `0x0128`, challenge response, and an authenticated `0x0101` response. Authentication used valid, pre-existing device credentials. **The credentials were not supplied directly by Withings.** No Withings cloud API, developer API, or remote authentication service was used for this independent BLE experiment. Credential acquisition, provenance, storage location, and values are deliberately outside the published scope. The separate official-app synchronization used for validation is not represented as an offline app operation.
+
+The following authenticated requests were sent (WPP framing and 16-bit fields are big-endian):
+
+| Operation | WPP bytes | Observation |
+| --- | --- | --- |
+| GET_STATE | `01 01 0F 00 06 01 14 00 02 00 00` | `0x010F` reply containing `0x0114` and `0x0115` |
+| GET_ALL | `01 01 0F 00 06 01 14 00 02 01 00` | Multi-frame `0x010F` measurement transfer |
+
+The GET_ALL response contained repeated `0x0116` session/group metadata, `0x0117` numeric measurement values, `0x0993` attributes, and other observed TLVs (`0x012B`, `0x0149`, `0x014A`, `0x09B9`). An empty `0x0100` TLV was observed at the end of the transfer. The presence of these fields is confirmed; their meaning may depend on device and context. The scale returned decoded weight `104.143 kg` in the test session, and additional body composition, segmental, bioimpedance, and cardiovascular values. Do not infer proprietary type labels from numerical magnitude alone.
+
+The independently retrieved values were compared with local SQLite records after the official application synchronized the same session, including matching numerical values. The independent client did **not** send an explicit measurement acknowledgment, deletion, or sync-completion command. This does not prove that GET_ALL is free of all persistent side effects.
+
+
 
 ### 11.2 Stored binary signals: pending FIFO (`0x0147`)
 
