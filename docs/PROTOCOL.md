@@ -63,6 +63,25 @@ At the conclusion of the experiments, devices were **restored to factory conditi
 
 **Sensitive data:** Packet captures can contain MAC addresses, owner/user IDs, association keys, Wi-Fi SSIDs/passwords, names, and health measurements. Publish sanitized examples only; do not publish raw private captures or secret-bearing TLVs. The private analyzer mode is for local examination, not public distribution.
 
+### Body Scan 2: locally authenticated TLS/WPP measurement retrieval (October 2026)
+
+**Evidence: experimentally tested on one Body Scan 2 (model 19); not yet established as universal across models or firmware.**
+
+A local BLE client connected to the Withings service `00000000-0000-5749-5448-494e47530000`, using characteristic `00000005-0000-5749-5448-494e47530000` for the observed session. After a device-specific pre-TLS initialization, the device initiated a TLS handshake and the local client operated as the TLS server. The negotiated connection was TLS 1.3 with `TLS_CHACHA20_POLY1305_SHA256`.
+
+Inside TLS, the existing-association WPP exchange succeeded: identification/probe `0x0101`, challenge `0x0128`, challenge response, and an authenticated `0x0101` response. Authentication used valid, pre-existing device credentials. **The credentials were not supplied directly by Withings.** No Withings cloud API, developer API, or remote authentication service was used for this independent BLE experiment. Credential acquisition, provenance, storage location, and values are deliberately outside the published scope. The separate official-app synchronization used for validation is not represented as an offline app operation.
+
+The following authenticated requests were sent (WPP framing and 16-bit fields are big-endian):
+
+| Operation | WPP bytes | Observation |
+| --- | --- | --- |
+| GET_STATE | `01 01 0F 00 06 01 14 00 02 00 00` | `0x010F` reply containing `0x0114` and `0x0115` |
+| GET_ALL | `01 01 0F 00 06 01 14 00 02 01 00` | Multi-frame `0x010F` measurement transfer |
+
+The GET_ALL response contained repeated `0x0116` session/group metadata, `0x0117` numeric measurement values, `0x0993` attributes, and other observed TLVs (`0x012B`, `0x0149`, `0x014A`, `0x09B9`). An empty `0x0100` TLV was observed at the end of the transfer. The presence of these fields is confirmed; their meaning may depend on device and context. The scale returned decoded weight `104.143 kg` in the test session, and additional body composition, segmental, bioimpedance, and cardiovascular values. Do not infer proprietary type labels from numerical magnitude alone.
+
+The independently retrieved values were compared with local SQLite records after the official application synchronized the same session, including matching numerical values. The independent client did **not** send an explicit measurement acknowledgment, deletion, or sync-completion command. This does not prove that GET_ALL is free of all persistent side effects.
+
 ## 3. Tools, captures, and repeatable methodology
 
 ### Equipment and software
