@@ -63,6 +63,18 @@ At the conclusion of the experiments, devices were **restored to factory conditi
 
 **Sensitive data:** Packet captures can contain MAC addresses, owner/user IDs, association keys, Wi-Fi SSIDs/passwords, names, and health measurements. Publish sanitized examples only; do not publish raw private captures or secret-bearing TLVs. The private analyzer mode is for local examination, not public distribution.
 
+### Authentication and Credential Provenance
+
+The retrieval experiments used valid, pre-existing authentication credentials associated with the researcher's personally owned Withings devices.
+
+These credentials were obtained from locally available authentication material rather than through a direct request to Withings, its developer API, or a remote authentication service.
+
+All BLE protocol analysis, TLS negotiation, authentication, and measurement retrieval were performed locally, without communicating with Withings cloud services.
+
+The specific method used to locate the credentials, their storage location, and their values are intentionally excluded from this publication.
+
+The official Withings application was used separately to validate retrieved measurements against its local database. The application may communicate with Withings services during normal synchronization.
+
 ### Body Scan 2: locally authenticated TLS/WPP measurement retrieval (October 2026)
 
 **Evidence: experimentally tested on one Body Scan 2 (model 19); not yet established as universal across models or firmware.**
