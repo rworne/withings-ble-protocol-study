@@ -57,11 +57,13 @@ Do not turn an inference into a protocol constant. In particular, a value's pres
 
 This was an educational interoperability experiment conducted with devices under the researcher's control. Devices were not modified, jailbroken, or subjected to firmware patching. No encryption mechanisms were defeated or bypassed.
 
-Authentication was reproduced using valid, pre-existing credentials associated with the researcher's personally owned Withings devices. These credentials were obtained from locally available authentication material rather than through a direct request to Withings, its developer API, or a remote authentication service. The specific method used to locate the credentials, their storage location, and their values are intentionally excluded from this publication.
+Authentication experiments used two distinct categories of cryptographic material.
 
-All independent BLE protocol analysis, TLS negotiation, authentication, and measurement retrieval experiments were performed locally, without communicating with Withings cloud services. The experimental tooling did not submit Wi-Fi credentials or deliberately cause devices to contact Withings servers.
+For TLS communication with the Body Scan 2, valid, pre-existing authentication material associated with the researcher's personally owned device was used. This material was obtained locally, without requesting credentials from Withings or using its cloud or developer APIs. The acquisition method, storage location, and actual credential values are intentionally excluded from this publication.
 
-The official Withings application was used separately to capture normal device behavior and validate retrieved measurements against its local database. The application's ordinary operation may involve communication with Withings services. These activities are distinct from the independent, local BLE experiments.
+For the remaining BLE authentication and provisioning experiments, cryptographic keys were generated independently using random values. These experiments did not require extracting or obtaining pre-existing device authentication keys from Withings.
+
+All independent BLE protocol experiments were conducted locally. The official Withings application was used separately to observe normal device behavior and validate measurement data.
 
 At the conclusion of the experiments, devices were **restored to factory condition and re-provisioned according to Withings requirements**. Experimental changes should not be interpreted as an endorsed configuration or a statement about clinical accuracy.
 
