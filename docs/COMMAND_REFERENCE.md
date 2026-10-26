@@ -9,6 +9,17 @@ This reference is a **developer lookup table**, not an official protocol specifi
 
 **Evidence labels:** **Captured** = observed in analyzed BLE exchanges; **Tested** = reproduced by experimental software; **Implemented** = decoded/sent in supplied application source; **External** = documented by another independent project but not necessarily independently verified for each device; **Unresolved** = meaning or layout incomplete. These labels are not claims of interoperability across all Withings devices.
 
+### Body Scan 2 authenticated measurement retrieval (verified October 2026)
+
+On a Body Scan 2 (model 19), the application protocol was carried inside a locally established TLS 1.3 connection (`TLS_CHACHA20_POLY1305_SHA256`). The observed BLE characteristic was `00000005-0000-5749-5448-494e47530000`. An existing-association WPP challenge-response exchange (`0x0101` / `0x0128`) completed successfully before stored-measurement requests were accepted.
+
+| Operation | Complete WPP request (hex) | Observed response |
+| --- | --- | --- |
+| GET_STATE | `01 01 0F 00 06 01 14 00 02 00 00` | `0x010F` with `0x0114`, `0x0115` |
+| GET_ALL | `01 01 0F 00 06 01 14 00 02 01 00` | `0x010F` frames with `0x0116`, `0x0117`, other TLVs, ending in empty `0x0100` TLV |
+
+Credentials were valid, pre-existing device authentication material **not obtained directly from Withings**. The local client did not call Withings APIs or remote authentication services. Their acquisition method, source, storage location, and values are intentionally undisclosed. No explicit deletion, acknowledgment, or synchronization-completion command was sent.
+
 ## 1. Transport and framing
 
 Observed Withings GATT identifiers in the study:

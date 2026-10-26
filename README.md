@@ -130,9 +130,17 @@ It also identifies unresolved questions and areas where further research is need
 
 A quick-reference guide to commands, data structures, authentication, provisioning, and measurement transfers.
 
+### Body Scan 2: authenticated local measurement retrieval (October 2026)
+
+A Body Scan 2 (model 19) was independently accessed over BLE using a local Python client. The client completed a TLS 1.3 handshake (`TLS_CHACHA20_POLY1305_SHA256`), successfully completed the existing-association WPP challenge-response exchange, and retrieved stored measurements with `0x010F` GET_STATE and GET_ALL. The decrypted responses contained session metadata (`0x0116`), numeric values (`0x0117`), additional attributes, and an empty `0x0100` completion marker. Values were compared with a subsequent official-app synchronization and local SQLite records.
+
+No explicit measurement acknowledgment, synchronization-completion, or deletion command was sent in the independent retrieval; persistence of records after retrieval was not independently established.
+
 ## Research Methodology
 
 The investigation used commercially available, unmodified Withings devices and standard Bluetooth development tools.
+
+Authentication experiments used valid credentials associated with personally owned devices and obtained from locally available authentication material. No Withings cloud or developer API was used for the independent BLE experiments. Credential acquisition details are intentionally excluded from this repository.
 
 Methods included:
 
