@@ -134,13 +134,13 @@ A quick-reference guide to commands, data structures, authentication, provisioni
 
 A Body Scan 2 (model 19) was independently accessed over BLE using a local Python client. The client completed a TLS 1.3 handshake (`TLS_CHACHA20_POLY1305_SHA256`), successfully completed the existing-association WPP challenge-response exchange, and retrieved stored measurements with `0x010F` GET_STATE and GET_ALL. The decrypted responses contained session metadata (`0x0116`), numeric values (`0x0117`), additional attributes, and an empty `0x0100` completion marker. Values were compared with a subsequent official-app synchronization and local SQLite records.
 
-The retrieval experiment used valid, pre-existing device authentication material. **No authentication credentials, cryptographic keys, or protocol documentation were obtained directly from Withings.** The independent BLE experiment used no Withings cloud or developer API or remote authentication service. Credential acquisition methods, source, storage location, and values are deliberately not published. The official app was used separately for comparison and may contact Withings services during its normal operation.
-
 No explicit measurement acknowledgment, synchronization-completion, or deletion command was sent in the independent retrieval; persistence of records after retrieval was not independently established.
 
 ## Research Methodology
 
 The investigation used commercially available, unmodified Withings devices and standard Bluetooth development tools.
+
+Authentication experiments used valid credentials associated with personally owned devices and obtained from locally available authentication material. No Withings cloud or developer API was used for the independent BLE experiments. Credential acquisition details are intentionally excluded from this repository.
 
 Methods included:
 
