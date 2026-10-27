@@ -59,7 +59,7 @@ This was an educational interoperability experiment conducted with devices under
 
 Authentication experiments used two distinct categories of cryptographic material.
 
-The Body Scan 2 TLS and WPP authentication experiments used a valid KL (authentication key) and advertising key associated with the device. The acquisition method, source, storage location, and actual credential values are intentionally excluded from this publication.
+Body Scan 2 authentication experiments used valid, pre-existing authentication material associated with the test device, including an account-specific TLS certificate. Credential values and acquisition methods are outside the scope of this publication. All independent authentication experiments were performed locally over BLE.
 
 All independent BLE communication, TLS negotiation, authentication, and measurement retrieval were performed locally, without using Withings cloud services or developer APIs.
 
@@ -191,16 +191,58 @@ These are **separate** from `0x0128` and must not be conflated.
 
 The full official BPM Vision Wi-Fi setup contained **three** `0x09B2` stages (before Wi-Fi, after Wi-Fi, after ownership). The successful independent **BLE-only** provisioning flow used **two** (`0x09B2` before and after ownership installation). The extra official-app stage is not established as a BLE-only requirement.
 
+### Body Scan 2: TLS-protected WPP authentication
+
+Body Scan 2 differs from the other investigated devices by establishing a TLS-protected communication channel over BLE before performing authenticated WPP operations.
+
+The observed connection has the following properties:
+
+- The scale operates as the TLS client.
+- The local BLE application operates as the TLS server.
+- TLS 1.3 is negotiated.
+- The negotiated cipher suite is `TLS_CHACHA20_POLY1305_SHA256`.
+- Authentication uses an existing account-specific Ed25519 certificate.
+- WPP commands are exchanged inside the established TLS session.
+
+#### Factory-reset authentication
+
+An existing, valid account-specific certificate was successfully used to establish an authenticated TLS connection with a Body Scan 2 after a complete factory reset.
+
+The scale had not yet been re-associated with its previous account.
+
+This demonstrates that successful TLS authentication does not necessarily require the scale to retain its previous account association.
+
+The experiment was conducted entirely through local BLE communication without contacting manufacturer-operated services.
+
+#### Certificate validation
+
+A reconstructed certificate using mismatched signing material was rejected during TLS negotiation with a `bad_certificate` alert.
+
+This establishes that the device performs certificate validation, but does not identify the complete validation policy.
+
+In particular, the experiment does not establish whether the device validates a trusted issuer, a particular public key, certificate properties, or some combination of these.
+
+#### Limitations
+
+These results demonstrate authentication using an existing valid certificate. They do not establish that independently generated certificates can be used for initial provisioning.
+
+The requirements for establishing a completely new account association remain unresolved.
+
+See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md) for additional experimental details.
+
 ### Cross-device authentication observations
 
 The investigated Withings devices share WPP framing and several provisioning commands, but their observed authentication sequences are not identical.
 
-| Device | `0x0128` | `0x09B2` | `0x09C1` |
-|---|---|---|---|
-| BPM Connect | Observed; error `−6` in repeated pairing attempts | Not observed in analyzed captures | Not observed in analyzed captures |
-| Body Smart | Not established | Observed | Error `−3`; provisioning continued |
-| BeamO | Observed in existing-association captures | Observed | Successful response |
-| BPM Vision | Observed in existing-association captures | Observed | Successful response |
+| Device | Transport security | `0x0128` | `0x09B2` | `0x09C1` |
+|---|---|---|---|---|
+| BPM Connect | WPP over BLE | Observed; error `−6` during repeated pairing attempts | Not observed | Not observed |
+| Body Smart | WPP over BLE | Not established | Observed | Error `−3`; provisioning continued |
+| BeamO | WPP over BLE | Observed | Observed | Successful response |
+| BPM Vision | WPP over BLE | Observed | Observed | Successful response |
+| Body Scan 2 | WPP inside TLS 1.3 over BLE | Successful after TLS authentication | Not established | Not established |
+
+Transport distinction: Devices may share WPP command identifiers and logical operations without sharing the same authentication or transport-security mechanisms. Body Scan 2 requires a TLS-protected channel for the observed authenticated exchanges. The absence of a command from a particular capture does not establish that the device does not support it.
 
 #### Body Smart
 
@@ -267,11 +309,38 @@ BLE discovery/connect
 
 This is a description of the **observed working experimental path**, not a universal setup recipe for every model or firmware. The independent runner deliberately **does not send `0x0102` Wi-Fi scans, `0x0103` Wi-Fi credentials, or other Wi-Fi provisioning operations**. It does not call Withings APIs or contact vendor servers.
 
+### Cross-device provisioning observations
+
+Additional observations involving Body Smart, BeamO, and Body Scan 2 indicate that these devices share several logical provisioning stages.
+
+The observed processes include:
+
+1. Device identification and initial communication establishment.
+2. Authentication or initial security negotiation.
+3. Account association and installation of association credentials.
+4. Additional authentication or negotiation following association.
+5. Transfer of user/session configuration.
+6. Application of device-specific and user-specific settings.
+7. Display and feature configuration, where supported.
+8. Setup completion.
+
+The exact ordering, command availability, and encoding differ between device families.
+
+Body Smart provides evidence that account association and subsequent session configuration are separate operations. Additional user-specific and display configuration can follow the session transfer.
+
+Body Scan 2 performs its observed WPP exchanges inside TLS, whereas the investigated Body Smart and BeamO exchanges use the standard WPP-over-BLE transport.
+
+The shared logical stages suggest a common provisioning architecture, but do not establish identical binary serialization or interchangeable authentication credentials.
+
+The relationship between local provisioning and any manufacturer-operated infrastructure has not been independently established.
+
 ## 9. Users, feature configuration, and experiments
 
 ### Primary configuration: `0x010D`
 
-The official app sends a JSON configuration containing `body.ind` (device settings), `body.sp.users` (profiles), session information, and synchronization parameters. Observed fields include:
+Command 0x010D is used for transferring session and configuration data. JSON-encoded content has been verified in at least one device-specific implementation, including structures containing body.ind and body.sp.users. However, the command should be understood as a logical configuration-transfer mechanism rather than a universally JSON-encoded operation. The encoding and content must be verified independently for each device family.
+
+Observed fields include:
 
 ```json
 {
@@ -319,6 +388,24 @@ BPM Vision's data-bearing messages span records **4064–4107**; BeamO's span **
 - Keep raw captures, Wi-Fi credentials, owner/user identifiers, authentication keys, and unredacted configuration payloads out of the public repository.
 
 See [`docs/examples/BEAMO_PROVISIONING.md`](examples/BEAMO_PROVISIONING.md) for the BeamO record-by-record example and `tools/packetlogger/README.md` for analyzer usage.
+
+### Configuration transfer and application
+
+A completed configuration transfer should be distinguished from the application of individual settings.
+
+The following operations may occur separately:
+
+- Transfer of account and user/session information.
+- Installation or modification of device feature settings.
+- Application of per-user feature settings.
+- Configuration of available display screens.
+- Completion of the provisioning session.
+
+Body Smart observations demonstrate that display configuration can occur separately from the main session transfer.
+
+A successful transfer acknowledgment establishes that the device accepted the corresponding exchange. It does not, by itself, establish that every supplied setting became active.
+
+The binary representation of display configuration and the mapping of individual screen identifiers to user-visible functions remain under investigation.
 
 ### Secondary configuration: `0x09C3`
 
@@ -385,7 +472,7 @@ A numeric `0x0117` is eight bytes: signed BE `int32` mantissa at 0–3, BE `uint
 
 A local BLE client connected to the Withings service `00000000-0000-5749-5448-494e47530000`, using characteristic `00000005-0000-5749-5448-494e47530000` for the observed session. After a device-specific pre-TLS initialization, the device initiated a TLS handshake and the local client operated as the TLS server. The negotiated connection was TLS 1.3 with `TLS_CHACHA20_POLY1305_SHA256`.
 
-Inside TLS, the existing-association WPP exchange succeeded: identification/probe `0x0101`, challenge `0x0128`, challenge response, and an authenticated `0x0101` response. Authentication used valid, pre-existing device credentials. **The credentials were not supplied directly by Withings.** No Withings cloud API, developer API, or remote authentication service was used for this independent BLE experiment. Credential acquisition, provenance, storage location, and values are deliberately outside the published scope. The separate official-app synchronization used for validation is not represented as an offline app operation.
+Inside TLS, the existing-association WPP exchange succeeded: identification/probe `0x0101`, challenge `0x0128`, challenge response, and an authenticated `0x0101` response. Authentication used valid, pre-existing device credentials. No Withings cloud API, developer API, or remote authentication service was used for this independent BLE experiment. Credential acquisition, provenance, storage location, and values are deliberately outside the published scope. The separate official-app synchronization used for validation is not represented as an offline app operation.
 
 The following authenticated requests were sent (WPP framing and 16-bit fields are big-endian):
 
@@ -496,7 +583,7 @@ The same numeric value can name a command or TLV; context is mandatory.
 | `0x0105` | Battery | Captured/external |
 | `0x0108` | Region | Captured |
 | `0x0109` | Post-Wi-Fi operation | Captured; unresolved |
-| `0x010D` | Primary JSON configuration/session | Captured |
+| `0x010D` | Session/configuration transfer; payload encoding varies or remains unverified by device | Captured |
 | `0x010F` | Stored/numeric measurement operations | Prior implementation/external |
 | `0x0110` | Setup completion stage | Captured |
 | `0x0111` | Connection reason | Captured/external |
@@ -508,6 +595,9 @@ The same numeric value can name a command or TLV; context is mandatory.
 | `0x0128` | Existing-association challenge | Offline verified |
 | `0x0134` | Association/ownership key installation | Experimentally tested |
 | `0x0147` | Binary measurement data | Prior Explorer implementation |
+| `0x0148` | Binary signal acknowledgment / pending-queue advancement | Experimentally tested |
+| `0x050C` | Display-screen list configuration | Captured; field semantics partially decoded |
+| `0x050D` | Display-screen configuration query | Captured; response semantics partially decoded |
 | `0x0501` | Time setting | External |
 | `0x09B2` | Setup negotiation/challenge | Captured |
 | `0x09C1` | Setup negotiation continuation | Captured |
@@ -581,11 +671,26 @@ Unknown identifiers must remain visible in decoded reports with raw bytes and so
 ### Highest priority
 
 1. **Validate pending-FIFO semantics under interruption and retry.** The supplied Explorer code establishes `0x0147` retrieval and `0x0148` ACK/advance; verify persistence, duplicate ACK behavior, and whether historical random-access retrieval exists.
-2. Implement complete **WPP conversation reassembly**, including multi-frame `0x010D` JSON and binary transfers, with packet-level provenance.
+2. Implement complete WPP conversation reassembly, including multi-frame 0x010D configuration transfers and other binary payloads, with packet-level provenance. Do not assume JSON encoding unless independently verified.
 3. Reconstruct the three official BPM Vision `0x09B2` exchanges, compare the two BLE-only exchanges, and determine the role of the additional pre-ownership exchange without inventing cryptographic semantics.
 4. Decode the complete `0x0101` identification structure for each device and search for secondary firmware fields without hardcoding FW2.
 5. Verify the **reverse** `0x0128` challenge calculation with captured device response bytes.
-
+6. **Characterize Body Scan 2 certificate validation.**
+   Determine which certificate properties are validated during TLS authentication.
+   Distinguish issuer trust, public-key validation, certificate constraints,
+   and possible device-specific requirements.
+7. **Investigate independent Body Scan 2 provisioning.**
+   Determine whether a factory-reset device can be fully configured using
+   independently generated credentials and local BLE communication.
+8. **Compare provisioning across device families.**
+   Identify which logical operations are shared between Body Smart,
+   BeamO, and Body Scan 2, while distinguishing device-specific
+   transport security and payload encoding.
+9. **Decode display configuration.**
+   Establish the binary layout of screen-list configuration records,
+   identify screen IDs, and determine how enabled screens relate
+   to transmitted configuration entries.
+   
 ### Additional research
 
 - Differentiate persistent sync cursors from explicit object selectors and post-upload acknowledgments.
