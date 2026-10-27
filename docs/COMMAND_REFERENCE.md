@@ -2,7 +2,7 @@
 
 > **Project:** `withings-ble-protocol-study`  
 > **Status:** Independent research notes; incomplete, model/firmware-dependent  
-> **Updated:** 2026-10-24  
+> **Updated:** 2026-10-26  
 > **Companion:** [Protocol research report](PROTOCOL.md)
 
 This reference is a **developer lookup table**, not an official protocol specification. It summarizes the provided BLE capture analysis, provisioning experiments, and BeamO Explorer source. Command meanings are **context-specific**: a command number and a TLV number occupy separate namespaces. No identifying data, device keys, passwords, or personal measurements are reproduced here.
@@ -18,7 +18,19 @@ On a Body Scan 2 (model 19), the application protocol was carried inside a local
 | GET_STATE | `01 01 0F 00 06 01 14 00 02 00 00` | `0x010F` with `0x0114`, `0x0115` |
 | GET_ALL | `01 01 0F 00 06 01 14 00 02 01 00` | `0x010F` frames with `0x0116`, `0x0117`, other TLVs, ending in empty `0x0100` TLV |
 
-Credentials were valid, pre-existing device authentication material **not obtained directly from Withings**. The local client did not call Withings APIs or remote authentication services. Their acquisition method, source, storage location, and values are intentionally undisclosed. No explicit deletion, acknowledgment, or synchronization-completion command was sent.
+The experiment used valid, pre-existing authentication
+material associated with the test device.
+
+The independent implementation performed authentication
+locally over BLE without calling remote authentication
+services.
+
+Credential values, acquisition methods, and storage
+details are intentionally outside the scope of this
+publication.
+
+No explicit deletion, acknowledgment, or
+synchronization-completion command was sent.
 
 ## 1. Transport and framing
 
@@ -39,7 +51,11 @@ A WPP message has a **five-byte header**, followed by TLVs:
 └────────────────── version/prefix 0x01
 ```
 
-Integers in WPP framing are big-endian. **Do not equate an ATT notification with one complete WPP message.** Accumulate bytes until `5 + payload_length` bytes are available; parse every TLV with bounds checks. Large logical transfers can span multiple complete WPP frames, ending with a zero-length `0x0100` TLV. Preserve frame boundaries and ordering in forensic logs. The supplied Swift decoder implements buffering across notifications.
+Integers in WPP framing are big-endian. **Do not equate an ATT notification with one complete WPP message.** Accumulate bytes until `5 + payload_length` bytes are available; parse every TLV with bounds checks. Some large logical transfers span multiple complete WPP frames and terminate with a zero-length `0x0100` TLV.
+
+This termination behavior has been observed for measurement
+inventory and binary-signal transfers. It should not be
+assumed for every command or payload type. Preserve frame boundaries and ordering in forensic logs. The supplied Swift decoder implements buffering across notifications.
 
 **Exact constructed example (valid WPP encoding; not represented as a captured packet):**
 
@@ -83,6 +99,8 @@ This encodes inventory command `0x010F` with TLV `0x0114 = 01 00`.
 | `0x0148` | Host ↔ device | Acknowledge signal; advance pending queue | Implemented; see §6 |
 | `0x0501` | Host ↔ device | Set time | External; not characterized here |
 | `0x0502` | Host ↔ device | Clock drift information | External; not characterized here |
+| `0x050C` | Host → device | Configure enabled display screens | Captured on Body Smart; partially decoded |
+| `0x050D` | Host ↔ device | Query display-screen configuration | Captured on Body Smart; response layout unresolved |
 | `0x09B2` | Host ↔ device | Initial-setup challenge/negotiation | Captured; cryptographic role unresolved |
 | `0x09C1` | Host ↔ device | Initial-setup negotiation continuation | Captured; semantics unresolved |
 | `0x09C3` | Host → device | Secondary global / per-user settings | Captured / tested; see §4 |
@@ -117,6 +135,39 @@ host_proof = hashlib.sha1(device_challenge + mac_ascii + kl_ascii).digest()
 | `host_proof` | 20-byte SHA-1 digest |
 
 Prior analysis reported three exact digest matches in BeamO traces. The supplied Swift code additionally verifies the reciprocal device proof. This mechanism requires an **authorized, existing association key**; it does not defeat or bypass encryption.
+
+#### Body Scan 2 TLS authentication
+
+Body Scan 2 (model 19) uses TLS 1.3 over BLE for the
+investigated authenticated WPP operations.
+
+Observed properties:
+
+| Property | Observation |
+|---|---|
+| TLS version | TLS 1.3 |
+| TLS client | Body Scan 2 |
+| TLS server | Local BLE application |
+| Cipher suite | `TLS_CHACHA20_POLY1305_SHA256` |
+| Certificate algorithm | Ed25519 |
+| Application protocol | WPP inside TLS |
+
+An existing, valid account-specific certificate successfully
+authenticated with a factory-reset Body Scan 2 before the
+device was re-associated with its previous account.
+
+A reconstructed certificate using mismatched signing material
+was rejected with a TLS `bad_certificate` alert.
+
+These experiments establish that the device performs
+certificate validation, but do not identify its complete
+certificate trust policy.
+
+Successful TLS authentication with an existing certificate
+does not establish that independently generated certificates
+can be used for initial provisioning.
+
+See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md).
 
 #### BPM Connect: `0x0128` authentication observations
 
@@ -188,7 +239,15 @@ The provisioning sequence continues after this response.
 
 ### `0x0134` — association keys
 
-Installs the Withings account identifier and device association credentials, including the KL and advertiser key.
+Installs account-association information and authentication
+credentials, including the KL and advertiser key.
+
+The command has been observed during provisioning on
+multiple device families.
+
+The source of the installed credentials is not established
+by this BLE exchange. Their generation and distribution
+are outside the scope of this reference.
 
 The observed request contains two TLVs:
 
@@ -222,9 +281,17 @@ In the analyzed captures, the advertiser key is 32 ASCII bytes, preceded by the 
 
 The KL and advertiser key are sensitive association credentials. Never include actual credentials or unredacted ownership packets in public documentation, test fixtures, or examples.
 
-### `0x010D` — primary JSON configuration
+### `0x010D` — session/configuration transfer
 
-Captured configurations contain fields such as:
+Command `0x010D` is associated with transferring session
+and configuration information.
+
+JSON structures have been identified in some configurations,
+but the command's payload encoding should not be assumed
+to be identical across device families.
+
+The following is an illustrative configuration structure,
+not a universal `0x010D` payload definition:
 
 ```json
 {
@@ -234,6 +301,14 @@ Captured configurations contain fields such as:
   }
 }
 ```
+
+**Cross-device limitation:** Body Smart and Body Scan 2
+both exhibit session-configuration stages during provisioning.
+This does not establish that their payloads have identical
+serialization, field layouts, or transport requirements.
+
+Body Scan 2 exchanges occur within its TLS-protected
+communication channel.
 
 **The JSON above is a schematic field map, not a captured packet or a valid provisioning payload.** Preserve all unknown keys and original types in an actual extractor. Keep account IDs, user IDs, and target IDs consistently remapped while preserving their respective identity relationships. Do not assume account IDs and user IDs are interchangeable. Global target `0` remains `0`.
 
@@ -257,6 +332,45 @@ Captured configurations contain fields such as:
 
 **Feature observations:** BPM Vision feature `27` was involved in an experimental ECG/AFib configuration; BeamO feature `12` removal altered observed region-related behavior, while `15`, `27`, and `57` have been investigated. Do **not** assign definitive regional or medical meanings to feature numbers without controlled evidence. See the research report.
 
+### `0x050C` / `0x050D` — display-screen configuration
+
+Body Smart supports a separate display-configuration exchange
+following the main session configuration.
+
+Observed operations:
+
+| Command | Operation | Evidence |
+|---|---|---|
+| `0x050D` | Query screen configuration | Captured |
+| `0x050C` | Set screen configuration | Captured |
+
+The `0x050C` configuration contains repeated TLV `0x0516`
+records.
+
+| Field | Observed format | Status |
+|---|---|---|
+| TLV type | `0x0516` | Confirmed |
+| TLV value length | 18 bytes | Confirmed for observed records |
+| Value bytes 0–3 | Big-endian screen identifier | Partially decoded |
+| Value bytes 4–17 | Additional screen configuration | Unresolved |
+
+The observed screen identifiers, in transmission order, were:
+
+`66, 68, 116, 54, 40, 302`
+
+These identifiers have not been reliably mapped to individual
+user-visible screens.
+
+The presence of a screen configuration record does not
+necessarily establish that the corresponding screen is enabled.
+
+Screen configuration is distinct from the main session transfer
+and from secondary feature configuration (`0x09C3`).
+
+These observations are specific to the investigated Body Smart
+configuration and should not be assumed to apply identically
+to other device families.
+
 ### Captured setup order (representative; not universal)
 
 ```text
@@ -264,6 +378,17 @@ Captured configurations contain fields such as:
        → 0x010D → 0x0108 → 0x011A → 0x09C3
        → 0x0112 / 0x0113 / 0x0110
 ```
+
+Additional Body Smart observations establish that display
+configuration can be performed separately from session and
+feature configuration, using `0x050D` and `0x050C`.
+
+The representative sequence above is not a complete command
+trace for every device family.
+
+Body Scan 2 uses a TLS-protected transport for its observed
+authenticated WPP exchanges. Similar provisioning stages
+do not imply identical command ordering or payload encoding.
 
 The independent provisioning experiment did **not** transmit Wi-Fi provisioning messages or communicate with vendor servers.
 
@@ -380,6 +505,8 @@ External independent documentation describes **command `0x0100`** containing **T
 These codes are **externally documented**, not established here as exhaustive or universally applicable. Preserve the original error bytes and command context.
 
 **Open questions:** cryptographic interpretation of `0x09B2` / `0x09C1`; exact per-device identity subfield offsets; some provisioning completion commands; additional signal descriptors; the internal FIFO pointer representation; whether ACK deletes or only marks recordings; arbitrary-ID historical retrieval; meanings of unknown feature IDs and Wi-Fi status bytes.
+
+Additional unresolved areas include the complete binary layout of Body Smart display configuration (`0x050C`), the mapping of screen identifiers to user-visible screens, cross-device session-configuration serialization, and Body Scan 2 certificate trust-policy requirements.
 
 ## 9. Research and publication guidance
 
