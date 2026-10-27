@@ -1,196 +1,145 @@
-# Body Scan 2 — TLS Authentication and Infrastructure Dependencies
+# Body Scan 2 — TLS Authentication and Provisioning Dependencies
 
-**Device:** Withings Body Scan 2 (Model 19)  
+**Device:** Withings Body Scan 2 (model 19)  
 **Firmware tested:** 1781  
-**Protocol:** TLS 1.3 over Bluetooth Low Energy  
+**Transport:** TLS 1.3 over Bluetooth Low Energy (BLE)  
 **Investigation:** October 2026
 
 ## Overview
 
-The Withings Body Scan 2 (BS2) uses TLS 1.3 over Bluetooth Low Energy (BLE) to secure communication with the Withings application.
+The Body Scan 2 (BS2) uses TLS 1.3 over a proprietary BLE transport. Unusually, **the scale acts as the TLS client and the companion application acts as the TLS server**. The scale checks the certificate presented by the application before encrypted device commands can be exchanged.
 
-Interestingly, the scale operates as the **TLS client**, while the application operates as the **TLS server**.
+Testing establishes that an accepted account-specific certificate can authenticate to the scale **without an internet connection**, even after a full factory reset. This is distinct from completing device setup: the official provisioning workflow involves account association, installation of Bluetooth association credentials, and subsequent session and device configuration. Complete independent offline provisioning has **not** been demonstrated.
 
-Experiments demonstrate that the scale validates the certificate presented by the application, including when the scale has been factory-reset and has not yet been paired.
+This document summarizes protocol behavior and experimental outcomes without attributing individual findings to particular investigative sources. It intentionally omits credentials, account and device identifiers, and credential acquisition details.
 
-This behavior has significant implications for independent implementations and the long-term usability of the hardware.
+## 1. TLS certificate and trust
 
-## 1. TLS Certificate Characteristics
+An accepted certificate examined during testing had these properties:
 
-The TLS server certificate examined during testing has the following characteristics:
-
-| Property | Value |
-|---|---|
-| Certificate format | X.509 v3 |
-| Subject | Account-specific identifier |
+| Property | Observed value |
+| --- | --- |
+| Format | X.509 v3 |
+| Subject | Account-specific identity |
 | Issuer | `WBS15` |
-| Public key algorithm | Ed25519 |
-| Signature algorithm | Ed25519 |
+| Public key | Ed25519 |
+| Certificate signature | Ed25519 |
 | Validity | Approximately 99 years |
-| Basic Constraints | `CA:FALSE` |
-| Extended Key Usage | TLS Server Authentication, TLS Client Authentication |
+| Basic constraints | `CA:FALSE` |
+| Extended key usage | TLS server and client authentication |
 
-The certificate is associated with an account rather than explicitly identifying an individual scale.
-
-Its unusually long validity period suggests a design intended to minimize certificate renewal requirements.
-
-The precise certificate issuance and renewal mechanisms have not been established.
+The subject identifies an account rather than a particular scale. The issuer name is observable in the certificate; the certificate issuance process and trust-anchor implementation have not been established.
 
 ### Certificate validation experiments
 
-Three certificate configurations were tested:
+Three configurations were tested against both a previously paired device and a fully factory-reset device:
 
-| Certificate | Public key | Certificate signature | TLS result |
-|---|---|---|---|
-| Original certificate | Original | Original issuer signature | **Accepted** |
-| Reconstructed certificate | Newly generated | Signed using new key | **Rejected** |
-| Reconstructed certificate | Original | Signed using original account key | **Rejected** |
+| Presented certificate | Result |
+| --- | --- |
+| Previously accepted certificate | TLS handshake completed |
+| Reconstructed certificate with a new keypair, preserving identity fields and extensions | Rejected |
+| Reconstructed certificate retaining the accepted public key, but with a different certificate signature | Rejected |
 
-The reconstructed certificates preserved the original certificate's subject, issuer, serial number, validity period, and X.509 extensions.
+Rejected certificates produced the TLS fatal alert **`bad_certificate` (42 / `0x2A`)**. The reconstructions retained the subject, issuer, serial number, validity period, and extensions of the accepted certificate.
 
-Both reconstructed certificates were rejected with:
+These results show that matching certificate metadata—or even reusing the accepted public key—is not sufficient. They are consistent with validation against a persistent manufacturer trust anchor, but **do not distinguish issuer-signature verification from certificate pinning or another trust policy**.
 
-```text
-TLS fatal alert: bad_certificate (0x2A)
-```
+## 2. BLE transport and TLS handshake
 
-The experiments were performed against both an already-paired scale and a factory-reset, unpaired scale.
+The observed sequence is:
 
-The original certificate successfully established TLS in both states.
+1. Discover and connect to the scale over BLE; complete GATT setup and enable notifications.
+2. Send a pre-TLS initialization message that includes account context.
+3. Receive a TLS `ClientHello` from the scale.
+4. Respond with the application's TLS server handshake and certificate.
+5. Allow the scale to validate the certificate and complete the handshake.
+6. Exchange device-protocol messages inside encrypted TLS application records.
 
-**Finding:** The scale enforces certificate trust independently of its pairing state. Merely reproducing the certificate's identity fields or retaining its original public key is insufficient.
-
-The results are consistent with verification against a manufacturer-installed trust anchor, potentially associated with the `WBS15` issuer.
-
-However, exact-certificate pinning or another trust mechanism that survives factory reset has not been conclusively excluded.
-
-## 2. BLE/TLS Handshake
-
-TLS communication is transported over a proprietary Withings GATT characteristic.
-
-The observed handshake follows this sequence:
-
-1. The application discovers the scale and establishes a BLE connection.
-2. GATT discovery completes and notifications are enabled.
-3. The application sends a pre-TLS initialization message containing an account identifier.
-4. The scale responds with a TLS ClientHello.
-5. The application responds with its TLS server handshake and certificate.
-6. The scale validates the certificate.
-7. If accepted, TLS negotiation completes.
-8. Subsequent WPP protocol messages are exchanged within the encrypted TLS connection.
-
-The successful handshake negotiated:
+The successful negotiation used:
 
 ```text
-TLS version: TLS 1.3
+TLS version:  TLS 1.3
 Cipher suite: TLS_CHACHA20_POLY1305_SHA256
+TLS client:   Body Scan 2
+TLS server:   Companion application
 ```
 
-### Certificate rejection behavior
+An unacceptable certificate is rejected **before** encrypted provisioning commands can proceed. The scale does not need Wi-Fi or a live internet connection to perform this observed TLS authentication step.
 
-With a reconstructed certificate, the observed sequence is:
+On macOS, CoreBluetooth peripheral identifiers were observed changing between discovery sessions. Discovering the device afresh by its advertisement and using the resulting peripheral object proved more reliable than relying on a previously recorded CoreBluetooth identifier. The advertised name is not itself an authenticated identity.
 
-```text
-Scale → Application: TLS ClientHello
-Application → Scale: TLS server handshake
-Scale → Application: TLS fatal alert (bad_certificate)
-```
+## 3. Account association and provisioning
 
-With the original certificate, TLS negotiation completes successfully.
+The factory-reset provisioning workflow can be described at the following **high level**:
 
-The certificate rejection occurs before WPP authentication or provisioning.
+| Stage | Observed activity |
+| --- | --- |
+| Secure connection | BLE setup and TLS authentication |
+| Device identification | Initial identification, connection context, battery status, and challenge exchanges |
+| Basic configuration | Firmware checks, Wi-Fi settings, locale, and regional settings |
+| Account association | Association with an account and synchronization of device/account state |
+| Credential installation | Association credentials delivered to the scale |
+| Session provisioning | A further challenge followed by session data transfer |
+| Device preferences | Screen selection, feature configuration, and measurement units |
+| Completion | Successful setup acknowledgment and disconnection |
 
-### BLE device discovery
+The **credential-installation stage is not the end of setup**. A further challenge and session configuration occur afterward, followed by other device settings. Session provisioning appears to involve multiple operations, but whether these represent segmentation, retries, or another implementation detail has not been resolved. Some optional configuration operations can fail as unsupported without preventing setup from succeeding.
 
-During testing, macOS CoreBluetooth identifiers were observed changing between discovery sessions.
+### Bluetooth association credentials
 
-Reliable discovery was achieved by locating the device through its advertised name and connecting using the discovered BLE peripheral object.
+The provisioning sequence includes installation of an **association key (KL)** and a **Bluetooth advertising key** on the device. These credentials are consistent with the account-association mechanism used across related Withings products. Separate experiments with other Withings devices show that provisioned credentials can support subsequent authenticated BLE communication and measurement retrieval.
 
-This avoids reliance on persistent CoreBluetooth identifiers.
+These observations **do not establish** whether the keys are generated on the server or elsewhere, nor do they prove that every device model uses identical binary credential encoding. The exact BS2 credential-installation payload remains inside encrypted TLS application data.
 
-The advertised name is not considered a cryptographically secure device identifier.
+### Possible role of online services
 
-## 3. Factory Reset and Certificate Trust
+The association and configuration stages are consistent with the possibility that the companion application obtains account-specific information from manufacturer-operated services. **This remains an architectural hypothesis; the BLE findings do not establish the role of those services.** The origin of association credentials and the source of user-specific configuration have not been established by the BLE experiments.
 
-A factory-reset BS2 was tested before completing account pairing or Wi-Fi provisioning.
+The BS2's encrypted application records have not been decoded sufficiently to reconstruct its complete provisioning payloads or determine whether configuration data is transmitted as JSON, binary structures, or another representation.
 
-Two certificates were presented under otherwise equivalent conditions:
+## 4. Comparison with other Withings devices
 
-| Certificate | Factory-reset TLS result |
-|---|---|
-| Original certificate | **Handshake successful** |
-| Reconstructed certificate | **Rejected: bad_certificate** |
+The provisioning workflows identified for **BeamO**, **Body Smart**, and **Body Scan 2** share a recognizable high-level order: device identification, account association, association-credential installation, an additional challenge, session configuration, device preferences, and setup completion.
 
-This demonstrates that the certificate trust requirement exists before normal account pairing.
+This supports a **shared provisioning architecture** across these device families. It does **not** prove that their authentication transports, message layouts, or all device-specific configuration steps are interchangeable.
 
-The scale can evaluate the presented certificate without first establishing an internet connection.
+The Body Smart is a particularly relevant comparison because it is another scale and exposes binary configuration exchanges in a BLE capture. This provides a useful comparison for the BS2's encrypted provisioning stages, but exact on-wire equivalence remains unverified.
 
-The most likely explanation is an offline trust mechanism built into the device.
+## 5. Offline operation and infrastructure dependence
 
-The experiments do not establish whether the scale uses an embedded issuer public key, certificate pinning, or another validation mechanism.
+The experiments distinguish three separate requirements:
 
-## 4. Dependency on Withings Infrastructure
+| Requirement | Current finding |
+| --- | --- |
+| **TLS authentication** | An already accepted account certificate can complete TLS with the BS2 offline, including after factory reset. |
+| **Obtaining an accepted certificate** | Independently reconstructed certificates were rejected. Issuance and trust mechanisms remain unknown. |
+| **Complete device provisioning** | Online services may participate in association or configuration, but their precise role has not been established. A complete independent offline setup has not been demonstrated. |
 
-The official Withings application requires internet connectivity during device pairing.
+The long certificate validity is notable, but it does not establish indefinite access: other checks, credential lifecycles, firmware behavior, or provisioning requirements may impose additional constraints.
 
-However, the experiments demonstrate that the BS2 can establish TLS over BLE without internet connectivity when presented with an accepted certificate.
+If provisioning requires manufacturer-operated services, their unavailability could prevent the official application from configuring a reset device. The hardware's demonstrated ability to establish TLS offline **does not by itself establish** that the entire setup can be completed without those services.
 
-These are separate requirements:
+## 6. Established findings and open questions
 
-**TLS authentication**
+**Established by observation:**
 
-The scale requires a certificate that satisfies its trust mechanism. This validation can occur offline.
+- BS2 uses TLS 1.3 over BLE, with the scale as client and the application as server.
+- The scale rejects reconstructed certificates with a `bad_certificate` alert.
+- Acceptance of an existing certificate survives a full factory reset.
+- An accepted certificate can complete the TLS handshake without internet connectivity.
+- Successful setup includes account association, credential installation, further challenge/session provisioning, and device configuration.
+- Other Withings devices show a closely related high-level provisioning sequence.
 
-**Certificate issuance**
+**Not yet established:**
 
-The scale rejects independently reconstructed certificates. Consequently, obtaining an accepted certificate may depend on Withings' certificate infrastructure.
-
-**Device provisioning**
-
-The official application requires online connectivity during pairing. The complete independent pairing and Wi-Fi provisioning workflow has not yet been reproduced.
-
-### Long-term device usability
-
-If Withings' online services become unavailable, factory-reset devices may become impossible to configure using the official application.
-
-The hardware itself is capable of establishing secure BLE communication offline, but this does not guarantee that the remaining provisioning process can be completed independently.
-
-The approximately 99-year certificate validity is noteworthy: an already accepted certificate may remain usable for an exceptionally long period.
-
-However, the ability to establish TLS alone does not constitute a complete offline provisioning solution.
-
-## 5. Conclusions
-
-The investigation established the following:
-
-- The Body Scan 2 uses TLS 1.3 over BLE.
-- The scale acts as the TLS client.
-- The application acts as the TLS server.
-- The scale validates the application's certificate before completing TLS.
-- Independently reconstructed certificates are rejected.
-- Retaining the original account public key does not bypass certificate validation.
-- Certificate trust enforcement persists after factory reset.
-- TLS can be established without internet connectivity.
-- The official pairing workflow nevertheless requires internet access.
-
-The evidence strongly supports an offline certificate trust mechanism, although the precise verification method remains unidentified.
-
-### Future Investigation
-
-Further work should focus on:
-
-1. Identifying the certificate trust mechanism implemented by the scale.
-2. Determining whether the `WBS15` issuer signature is explicitly verified.
-3. Characterizing the encrypted WPP pairing and provisioning exchanges.
-4. Identifying which provisioning operations depend on Withings' online services.
-5. Determining whether complete offline device recovery is possible.
+- The precise certificate trust anchor, validation policy, or issuance process.
+- Where account-association keys originate, and whether online services participate in their creation or delivery.
+- The exact BS2 binary layouts for credential installation and session provisioning.
+- Whether the BS2 performs any additional post-setup data transfer equivalent to that observed on another scale.
+- Whether complete BS2 setup and recovery can be implemented offline using previously accepted credentials.
 
 ## Implications
 
-The Body Scan 2 demonstrates a significant distinction between **hardware capability** and **manufacturer-supported operation**.
+The BS2 illustrates a distinction between **secure hardware communication** and **manufacturer-supported provisioning**. Offline TLS authentication has been demonstrated, but complete device setup still involves steps whose dependence on online services is not fully understood.
 
-The device can establish secure communication without internet access, but its official setup process depends on online services.
-
-If those services become permanently unavailable, otherwise functional hardware may become difficult or impossible to reconfigure.
-
-Independent implementation of the remaining provisioning protocol could potentially reduce that dependency and extend the useful life of the hardware.
+Further protocol analysis may clarify whether independently implementing the remaining provisioning operations could reduce that dependence and preserve the usefulness of otherwise functional hardware.
