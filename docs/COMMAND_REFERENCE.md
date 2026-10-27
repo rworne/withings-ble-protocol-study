@@ -136,10 +136,9 @@ host_proof = hashlib.sha1(device_challenge + mac_ascii + kl_ascii).digest()
 
 Prior analysis reported three exact digest matches in BeamO traces. The supplied Swift code additionally verifies the reciprocal device proof. This mechanism requires an **authorized, existing association key**; it does not defeat or bypass encryption.
 
-#### Body Scan 2 TLS authentication
+#### Body Scan 2 — TLS authentication and measurement retrieval
 
-Body Scan 2 (model 19) uses TLS 1.3 over BLE for the
-investigated authenticated WPP operations.
+Body Scan 2 (model 19) uses TLS 1.3 over BLE for authenticated WPP communication.
 
 Observed properties:
 
@@ -150,24 +149,41 @@ Observed properties:
 | TLS server | Local BLE application |
 | Cipher suite | `TLS_CHACHA20_POLY1305_SHA256` |
 | Certificate algorithm | Ed25519 |
-| Application protocol | WPP inside TLS |
+| Application protocol | WPP over TLS |
 
-An existing, valid account-specific certificate successfully
-authenticated with a factory-reset Body Scan 2 before the
-device was re-associated with its previous account.
+**Previously provisioned devices**
 
-A reconstructed certificate using mismatched signing material
-was rejected with a TLS `bad_certificate` alert.
+A previously provisioned Body Scan 2 can be accessed using valid, existing authentication material associated with that device, including:
 
-These experiments establish that the device performs
-certificate validation, but do not identify its complete
-certificate trust policy.
+- An account-specific TLS certificate and corresponding private key.
+- The existing association key (KL).
+- The existing advertiser key.
 
-Successful TLS authentication with an existing certificate
-does not establish that independently generated certificates
-can be used for initial provisioning.
+Using these credentials, an independent BLE implementation has successfully:
 
-See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md).
+1. Established a TLS 1.3 connection.
+2. Completed authentication.
+3. Communicated with the device using WPP.
+4. Retrieved stored measurement data.
+
+The authenticated TLS connection has also been established successfully after a complete factory reset, before the device was re-associated with its previous account.
+
+**Authentication versus provisioning**
+
+These experiments establish that existing authentication material can be reused for independent communication with a previously provisioned device.
+
+They do not establish that the device will accept newly generated or replacement authentication credentials.
+
+In particular, the following remain unverified:
+
+- Whether an existing TLS certificate can be replaced.
+- Whether a new certificate can be installed without manufacturer involvement.
+- Whether the KL and advertiser keys can be independently changed.
+- Whether a factory-reset device can be fully provisioned using independently generated credentials.
+
+Successful authentication and measurement retrieval should therefore be distinguished from the ability to establish or modify an account association.
+
+See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md) for additional details.
 
 #### BPM Connect: `0x0128` authentication observations
 
