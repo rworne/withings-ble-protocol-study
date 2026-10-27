@@ -30,7 +30,7 @@ The research focuses on documenting actual protocol exchanges and distinguishing
 | Withings BPM Vision | Pairing, authentication, provisioning, configuration, feature negotiation |
 | Withings BPM Connect | Pairing, existing-association authentication, ownership provisioning, configuration |
 | Withings Body Smart | Authentication, provisioning, user configuration, measurement-related settings |
-| Withings Body Scan 2 | BLE protocol investigation and device communication |
+| Withings Body Scan 2 | TLS 1.3 authentication over BLE, existing-credential authentication, WPP communication, stored measurement retrieval, provisioning investigation |
 
 Protocol behavior may vary by device model, firmware version, and configuration.
 
@@ -57,6 +57,20 @@ Initial provisioning uses separate negotiation commands, including `0x09B2` and 
 BPM Connect captures also demonstrate an existing-association `0x0128` authentication exchange that returned error `−6` during repeated pairing attempts. The cause remains unresolved.
 
 These observations establish device-specific differences in authentication behavior without establishing distinct formal WPP protocol versions.
+
+#### Body Scan 2 TLS authentication
+
+Body Scan 2 uses TLS 1.3 over BLE, with the scale acting as the TLS client and the local application acting as the TLS server.
+
+An independent implementation successfully established authenticated communication using a valid, existing account-specific Ed25519 certificate and associated authentication credentials.
+
+The same certificate was also accepted during TLS authentication after a complete factory reset, before the device was re-associated with its previous account.
+
+These results establish that existing authentication material can be reused for local communication. They do not establish whether independently generated or replacement credentials can be installed.
+
+The complete certificate validation policy and requirements for independent initial provisioning remain unresolved.
+
+See [Body Scan 2 TLS Authentication](docs/Body_Scan_2_TLS_Authentication.md).
 
 ### Device Provisioning
 
@@ -132,16 +146,34 @@ A quick-reference guide to commands, data structures, authentication, provisioni
 
 ### Body Scan 2: authenticated local measurement retrieval (October 2026)
 
-A Body Scan 2 (model 19) was independently accessed over BLE using a local Python client. The client completed a TLS 1.3 handshake (`TLS_CHACHA20_POLY1305_SHA256`), successfully completed the existing-association WPP challenge-response exchange, and retrieved stored measurements with `0x010F` GET_STATE and GET_ALL. The decrypted responses contained session metadata (`0x0116`), numeric values (`0x0117`), additional attributes, and an empty `0x0100` completion marker. Values were compared with a subsequent official-app synchronization and local SQLite records.
+An independent Python implementation successfully established authenticated communication with a previously provisioned Body Scan 2 (model 19) over BLE.
 
-No explicit measurement acknowledgment, synchronization-completion, or deletion command was sent in the independent retrieval; persistence of records after retrieval was not independently established.
+Using valid, existing authentication material associated with the device, including its TLS certificate, KL, and advertiser key, the implementation successfully:
+
+1. Established a TLS 1.3 connection using `TLS_CHACHA20_POLY1305_SHA256`.
+2. Completed the existing-association WPP authentication exchange.
+3. Retrieved stored measurement data using `0x010F` GET_STATE and GET_ALL.
+4. Decoded measurement metadata, numerical values, and associated attributes.
+
+The retrieved data included session metadata (`0x0116`), numerical measurements (`0x0117`), additional attributes, and a transfer-completion marker (`0x0100`).
+
+No explicit measurement acknowledgment, synchronization-completion, or deletion command was sent during the independent retrieval. Persistence of the retrieved records was not independently established.
+
+**Established:** A previously provisioned Body Scan 2 can be accessed independently using its existing authentication credentials.
+
+**Not yet established:** Whether the TLS certificate, KL, or advertiser key can be independently replaced, or whether a factory-reset device can be fully provisioned using newly generated credentials.
+
+The individual roles and necessity of each credential have not yet been independently isolated.
 
 ## Research Methodology
 
 The investigation used commercially available, unmodified Withings devices and standard Bluetooth development tools.
 
-Authentication experiments used valid credentials associated with personally owned devices and obtained from locally available authentication material. No Withings cloud or developer API was used for the independent BLE experiments. Credential acquisition details are intentionally excluded from this repository.
+Authentication experiments used valid, pre-existing credentials associated with personally owned devices.
 
+Independent protocol experiments were conducted through local BLE communication, without requiring remote authentication services.
+
+Credential values, acquisition methods, and storage details are outside the scope of this publication.
 Methods included:
 
 1. Capturing Bluetooth communications during normal device operation.
@@ -166,8 +198,8 @@ This project was conducted for educational and interoperability research.
 - No devices were jailbroken or physically modified.
 - No device firmware was modified.
 - No encryption protections were defeated or bypassed.
-- Independent provisioning experiments did not communicate with Withings servers.
-- Devices were restored to factory condition and re-provisioned according to Withings requirements at the conclusion of the experiments.
+- Independent BLE experiments did not require direct communication with manufacturer-operated services.
+- Devices subjected to experimental modifications were factory-reset and restored to their original manufacturer-supported configuration before being re-associated with Withings services. Modified experimental configurations were not connected to manufacturer-operated services.
 
 Captured Wi-Fi provisioning exchanges may be discussed for protocol documentation, but the independent provisioning implementation was restricted to BLE communication.
 
