@@ -93,7 +93,8 @@ sequenceDiagram
     D-->>A: Identity or 0x0128 authentication challenge
     A->>D: Existing-association proof when required
     D-->>A: Identity and reciprocal proof when applicable
-    A->>D: 0x0111 connection reason; 0x0105 battery
+    A->>D: 0x0111 connection reason
+    A->>D: 0x0105 battery
     A->>D: 0x09B2 / 0x09C1 negotiation
     Note over A,D: Initial setup may additionally configure Wi-Fi and install association keys
     Note over A,S: Backend provisioning acquisition is not directly visible in these BLE captures
