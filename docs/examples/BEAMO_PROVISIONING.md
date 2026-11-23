@@ -6,7 +6,7 @@
 
 ## Capture and interpretation
 
-The analyzer processed **9,346 PacketLogger records**. The principal provisioning sequence below uses connection handle `0x005E`. PacketLogger record numbers identify events within this specific capture, not protocol sequence numbers. The analyzer reported **eight L2CAP reassembly warnings** across the capture; none was reported within the `0x010D` configuration-transfer record range (7122–7142). This does not establish that every part of the capture is complete.
+The analyzer processed **9,346 PacketLogger records**. The principal provisioning sequence below uses connection handle `0x005E`. PacketLogger record numbers identify events within this specific capture, not protocol sequence numbers. These analyzer indices start at **0**; the newer [US/EU study](../BEAMO_US_EU_PROVISIONING.md) uses Wireshark frames starting at **1**. For this capture, add 1 to convert a record index to a Wireshark frame number. The analyzer reported **eight L2CAP reassembly warnings** across the capture; none was reported within the `0x010D` configuration-transfer record range (7122–7142). This does not establish that every part of the capture is complete.
 
 The table distinguishes **observed command exchanges** from higher-level interpretations. A device response establishes that a response was seen; it does not by itself prove that every user-facing feature became operational.
 
@@ -43,13 +43,13 @@ The analyzer reports one logical transfer on handle `0x005E`:
 
 The six `0x0112` TLV value lengths are **64, 64, 64, 64, 64, and 30 bytes**. Under the observed one-byte chunk-length-prefix convention, this yields `(5 × 63) + 29 = 344` content bytes. Each of these messages is an individually framed WPP message, not merely a Bluetooth transport fragment.
 
-**Important limitation:** The reconstructed BeamO content was **not validated as JSON** by this analyzer run (`json_valid: null`). Do not describe it as successfully decoded JSON or publish guessed field values. This result demonstrates transfer framing, chunk aggregation, termination, and response association—not complete semantic decoding of the payload.
+**Historical scope:** This analyzer run did not validate JSON (`json_valid: null`); it established transfer framing, aggregation, termination and response association. Later private reconstruction successfully parsed the content as JSON. The [US/EU provisioning study](../BEAMO_US_EU_PROVISIONING.md) publishes reviewed, non-sensitive excerpts and firmware-qualified interpretations. The original public report remains redacted and does not independently demonstrate those fields.
 
 ## Secondary configuration (`0x09C3`)
 
 Three host requests at records **7168**, **7170**, and **7175** each contain one `0x0145` TLV and six `0x09D5` TLVs. The final request additionally includes the empty `0x0100` terminator. The device responds at **7178** with an empty `0x0100` TLV.
 
-This validates the **presence and grouping** of secondary configuration TLVs in this capture. The public analyzer output redacts their contents, so this example does **not** assert specific feature IDs, feature values, region mappings, or per-user settings. Those must be supported by a separate, explicitly reviewed private decode before being added to public documentation.
+This validates the **presence and grouping** of secondary configuration TLVs in this capture. The public analyzer output redacts their contents, so this example does **not** assert specific feature IDs, feature values, region mappings, or per-user settings. That separate decode is now documented in the [US/EU study](../BEAMO_US_EU_PROVISIONING.md), including Guest versus named-user settings and accepted versus discarded feature IDs.
 
 ## Scope and reproducibility
 

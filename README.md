@@ -144,6 +144,10 @@ It also identifies unresolved questions and areas where further research is need
 
 A quick-reference guide to commands, data structures, authentication, provisioning, and measurement transfers.
 
+### BeamO: US and EU provisioning
+
+[BeamO US/EU provisioning over BLE/WPP](docs/BEAMO_US_EU_PROVISIONING.md) documents the complete captured setup and refresh flows, regional feature lists, per-profile activation, feature-name mappings and firmware-781 precedence rules. It distinguishes Guest settings from inherited defaults and separates ECG Requires Review from user ECG activation.
+
 ### Body Scan 2: authenticated local measurement retrieval (October 2026)
 
 An independent Python implementation successfully established authenticated communication with a previously provisioned Body Scan 2 (model 19) over BLE.

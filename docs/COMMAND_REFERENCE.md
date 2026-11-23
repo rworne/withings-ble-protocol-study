@@ -82,7 +82,7 @@ This encodes inventory command `0x010F` with TLV `0x0114 = 01 00`.
 | `0x0103` | Host ↔ device | Wi-Fi credentials / result | Captured; **documentation only** |
 | `0x0104` | Host ↔ device | Additional Wi-Fi-related operation | Captured, unresolved |
 | `0x0105` | Host ↔ device | Battery information | Captured / external; field layout not asserted |
-| `0x0108` | Host → device | Region configuration | Captured; exact value layout omitted here |
+| `0x0108` | Host ↔ device | Wi-Fi country configuration | Captured; separate from medical-feature/classification region |
 | `0x0109` | Host ↔ device | Post-Wi-Fi operation | Captured, unresolved |
 | `0x010D` | Host → device | Primary configuration JSON | Captured / tested; see §4 |
 | `0x010F` | Host ↔ device | Stored numeric measurement inventory | Implemented; see §5 |
@@ -103,7 +103,7 @@ This encodes inventory command `0x010F` with TLV `0x0114 = 01 00`.
 | `0x050D` | Host ↔ device | Query display-screen configuration | Captured on Body Smart; response layout unresolved |
 | `0x09B2` | Host ↔ device | Initial-setup challenge/negotiation | Captured; cryptographic role unresolved |
 | `0x09C1` | Host ↔ device | Initial-setup negotiation continuation | Captured; semantics unresolved |
-| `0x09C3` | Host → device | Secondary global / per-user settings | Captured / tested; see §4 |
+| `0x09C3` | Host → device | Secondary target-specific settings | Captured / tested; see §4 |
 
 **Do not infer direction or precise payload structure from the name alone.** For commands not expanded below, consult the full report and original captures.
 
@@ -326,17 +326,19 @@ serialization, field layouts, or transport requirements.
 Body Scan 2 exchanges occur within its TLS-protected
 communication channel.
 
-**The JSON above is a schematic field map, not a captured packet or a valid provisioning payload.** Preserve all unknown keys and original types in an actual extractor. Keep account IDs, user IDs, and target IDs consistently remapped while preserving their respective identity relationships. Do not assume account IDs and user IDs are interchangeable. Global target `0` remains `0`.
+**The JSON above is a schematic field map, not a captured packet or a valid provisioning payload.** Preserve all unknown keys and original types in an actual extractor. Keep account IDs, user IDs, and target IDs consistently remapped while preserving their respective identity relationships. Do not assume account IDs and user IDs are interchangeable. Target `0` remains `0`; on the inspected BeamO firmware it is the Guest/no-selected-user slot, not an inherited global default.
 
 ### `0x09C3` — secondary settings
 
+Target selection can span WPP frames. Preserve the current target across frames and apply the transfer on the empty `0x0100` marker. Command context matters: TLV `0x0145` is a target here, but a signal ID in `0x0148`.
+
 | TLV | Length | Interpretation | Evidence |
 |---|---:|---|---|
-| `0x0145` | 4 | Target ID, BE `uint32`; `0` global, nonzero per-user | Captured / tested |
+| `0x0145` | 4 | Target ID, BE `uint32`; `0` Guest on BeamO firmware 781; nonzero per-user; other models require verification | Captured / tested |
 | `0x09D5` | 12 | Eight `00` bytes + BE `uint16` feature ID + BE `uint16` value | Captured / tested |
 | `0x0100` | 0 | Marker/status | Captured |
 
-**Constructed encoding example (not from a capture):** set feature 27 (`0x001B`) to 1 for global target 0:
+**Constructed encoding example (not from a capture):** set feature 27 (`0x001B`) to 1 for target 0 (Guest in the inspected BeamO path):
 
 ```hex
 01 09 C3 00 18
@@ -344,9 +346,29 @@ communication channel.
    09 D5 00 0C 00 00 00 00 00 00 00 00 00 1B 00 01
 ```
 
-`0x0018` is the 24-byte TLV payload length (8 + 16). This example illustrates the observed field encoding; it does **not** claim that one command alone enables a device feature. Primary `ind.ft`, per-user feature lists, and secondary global/per-user values are distinct layers.
+`0x0018` is the 24-byte TLV payload length (8 + 16). This example illustrates the observed field encoding; it does **not** claim that one command alone enables a device feature. Primary `ind.ft`, any per-user JSON feature lists, and secondary target-specific values are distinct layers. The analyzed BeamO session JSON has no named-user `ft` fields; effective profile tags arrive later over WPP.
 
-**Feature observations:** BPM Vision feature `27` was involved in an experimental ECG/AFib configuration; BeamO feature `12` removal altered observed region-related behavior, while `15`, `27`, and `57` have been investigated. Do **not** assign definitive regional or medical meanings to feature numbers without controlled evidence. See the research report.
+### BeamO feature IDs resolved from app and firmware analysis
+
+The app's `FeatureID.name` lookup identifies the following codes. Names establish intended labels; firmware traces and owner observations establish behavior separately.
+
+| ID | App name | BeamO qualification |
+|---|---|---|
+| 3 / 15 | SpO2 Non-Medical / SpO2 Medical | Tag 3 takes precedence when present; otherwise tag 15 is checked |
+| 4 / 27 | ECG SW1 / ECG SW2 | Legacy/newer ECG algorithm paths; activation precedence differs by consumer |
+| 12 | ECG Requires Review | Owner-observed: records ECG while hiding waveform and results; not the ECG authorization switch |
+| 49 | Eyes-Closed Mode | Accepted by firmware 781; no BeamO-specific consumer established |
+| 57 | How to Use | Tutorial/help feature |
+| 80 | ECG No Library | Basic ECG activation/fallback mode |
+| 81 | Body Temperature | Temperature activation |
+| 82 | Heart Respiratory Sounds | Stethoscope recording activation |
+| 83 / 84 / 85 | Share Healthcare Professional / Share Family / Share Device | App-level sharing features |
+| 133 / 134 | StethoMe medical / eMurmur medical | Medical stethoscope-analysis labels; exact execution/activation paths unresolved |
+
+Firmware 781's inspected per-profile filter accepts only **3, 12, 15, 27, 49, 80, 81 and 82**. An acknowledgment does not prove that unsupported IDs were retained. A selected user's missing tag does not inherit Guest's value; missing and explicitly off are distinct states. The device-level `body.ind.ft` list is not a proven firmware default/override mechanism.
+
+See [BeamO US/EU provisioning](BEAMO_US_EU_PROVISIONING.md) for capture comparisons, profile-specific settings, precedence rules, firmware addresses and evidence limitations.
+
 
 ### `0x050C` / `0x050D` — display-screen configuration
 
@@ -501,7 +523,7 @@ These messages were observed in official-app setup captures; they are **not used
 | `0x0103` request / `0x0104` | `[SSID length:1][SSID][password length:1][password]` | **Never publish raw payload** |
 | `0x0103` response / `0x0106` | First byte: setup status | Only `0x02` associated with displayed Wi-Fi authentication failure in experiment |
 | `0x0103` response / `0x010A` | Additional network/device data | Mostly unknown |
-| `0x0109` / `0x010D`, `0x010E` | Post-Wi-Fi exchange | Unresolved |
+| `0x0109` / `0x010D`, `0x010E` | Interface settings / Wi-Fi enable controls in the inspected firmware | Other internal fields remain model-dependent |
 
 Observed `0x0106` first-byte values included `0x00` (successful BPM Vision case), `0x02` (BeamO case with displayed authentication failure), and `0x03` / `0x05` (**unknown failure meanings**). These Wi-Fi status bytes are **not** WPP general error codes.
 

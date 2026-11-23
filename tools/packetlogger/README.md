@@ -27,6 +27,10 @@ By default the tool suppresses payload bytes, MAC addresses, advertising names, 
 - Private mode decodes the completed JSON; public mode exposes only transfer metadata, never reconstructed JSON or payload
 - WPP `0x0147` signal retrieval and `0x0148` acknowledgment at the command/TLV level
 
+TLV labels are interpreted in their enclosing WPP command context. For example, `0x0145` is a configuration target in `0x09C3` and a signal ID in `0x0148`; ownership TLVs `0x0135`/`0x0136` are labeled as credentials only inside `0x0134`. Target 0 is labeled neutrally because its role depends on the model (Guest in the inspected BeamO path). Unknown-context values remain redacted.
+
+Analyzer `record` indices are zero-based. Wireshark's `frame.number` is one-based: add 1 when comparing the same capture with the [BeamO US/EU study](../../docs/BEAMO_US_EU_PROVISIONING.md).
+
 ## Caveats
 
 - **Experimental**. A WPP continuation is assumed to carry subsequent bytes on the same ATT attribute; other fragmentation patterns may need additional decoding.

@@ -197,12 +197,45 @@ class DecoderTests(unittest.TestCase):
         # Truncated TLVs must also be handled safely.
         short_fields, complete = tlvs(
             struct.pack('>HH', 0x0135, 2) + b'\x01\x02'
-            + struct.pack('>HH', 0x0136, 0)
+            + struct.pack('>HH', 0x0136, 0), command=0x0134
         )
 
         self.assertTrue(complete)
         self.assertFalse(short_fields[0]['structure_valid'])
         self.assertFalse(short_fields[1]['structure_valid'])
+
+    def test_tlv_identifiers_are_command_scoped(self):
+        fields=[(0x0135, bytes(4)+bytes([32])+b'K'*32),
+                (0x0136, bytes([32])+b'A'*32)]
+        for cmd in (0x0135, 0x0101):
+            for field in parse_wpp(frame(cmd,fields))['tlvs']:
+                self.assertNotIn('kl_length',field)
+                self.assertNotIn('key_length',field)
+                self.assertEqual(field['value'],'<redacted>')
+        unknown,_=tlvs(struct.pack('>HH',0x0135,37)+fields[0][1])
+        self.assertNotIn('kl_length',unknown[0])
+
+    def test_configuration_target_and_signal_id_are_distinct(self):
+        ident=bytes([1,2,3,4])
+        target=parse_wpp(frame(0x09C3,[(0x0145,ident)]))['tlvs'][0]
+        signal=parse_wpp(frame(0x0148,[(0x0145,ident)]))['tlvs'][0]
+        self.assertEqual(target['target'],'<user-id-redacted>')
+        self.assertNotIn('signal_id',target)
+        self.assertEqual(signal['signal_id'],'<signal-id-redacted>')
+        self.assertNotIn('target',signal)
+        private=parse_wpp(frame(0x0148,[(0x0145,ident)]),private=True)
+        self.assertEqual(private['tlvs'][0]['signal_id'],0x01020304)
+        zero=parse_wpp(frame(0x09C3,[(0x0145,bytes(4))]))['tlvs'][0]
+        self.assertEqual(zero['target'],0)
+        self.assertNotIn('global',zero['meaning'])
+
+    def test_feature_records_require_configuration_context(self):
+        feature=bytes(8)+struct.pack('>HH',27,1)
+        config=parse_wpp(frame(0x09C3,[(0x09D5,feature)]))['tlvs'][0]
+        self.assertEqual(config['feature_id'],27)
+        other=parse_wpp(frame(0x0101,[(0x09D5,feature)]))['tlvs'][0]
+        self.assertNotIn('feature_id',other)
+        self.assertEqual(other['value'],'<redacted>')
 
     def test_cli_synthetic_capture(self):
         with tempfile.TemporaryDirectory() as d:

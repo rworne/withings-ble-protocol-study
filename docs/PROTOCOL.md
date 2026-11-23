@@ -287,7 +287,7 @@ The account ID is distinct from the user ID and physical device ID. These identi
 
 In independent BLE-only provisioning experiments, fresh identifiers and credentials were generated rather than reusing credentials from an official account. The installation was followed by further negotiation and configuration.
 
-For sanitized captures, maintain separate mappings for Withings account IDs, per-user IDs, and device IDs. Replace each original identifier consistently wherever it appears, preserving repeated references within its identifier category. Do not infer relationships between identifiers merely because their numeric values happen to match. Global target `0` remains `0`.
+For sanitized captures, maintain separate mappings for Withings account IDs, per-user IDs, and device IDs. Replace each original identifier consistently wherever it appears, preserving repeated references within its identifier category. Do not infer relationships between identifiers merely because their numeric values happen to match. Target `0` remains `0`; its inspected BeamO role is Guest, not an automatically inherited global default.
 
 The detailed binary layouts are documented in `docs/COMMAND_REFERENCE.md`.
 
@@ -301,9 +301,9 @@ BLE discovery/connect
   → 0x0134 account ID + KL + advertiser key
   → 0x09B2 post-ownership negotiation
   → 0x010D primary JSON configuration
-  → 0x0108 region
+  → 0x0108 Wi-Fi country
   → 0x011A language
-  → 0x09C3 global and per-user secondary settings
+  → 0x09C3 target-specific secondary settings
   → 0x0112 / 0x0113 / 0x0110 finalization (verify exact order per script/capture)
 ```
 
@@ -375,14 +375,16 @@ In the analyzed captures, each `0x0112` TLV value starts with a **one-byte conte
 | Capture | Handle | Data chunks | Wire TLV bytes | Assembled content | Terminator | Device acknowledgment | JSON status |
 |---|---|---:|---:|---:|---|---|---|
 | BPM Vision Wi-Fi provisioning | `0x0058` | 11 | 642 | **631 bytes** | Record 4113 | Record 4168 | Valid JSON in private reconstruction |
-| BeamO provisioning (`beamo-setup(1).pklg`) | `0x005E` | 6 | 350 | **344 bytes** | Record 7142 | Record 7151 | **Not established** (`json_valid: null` in analyzer output) |
+| BeamO provisioning (`beamo-setup(1).pklg`) | `0x005E` | 6 | 350 | **344 bytes** | Record 7142 | Record 7151 | Not validated in that public analyzer report; validated by later private reconstruction |
+
+**Numbering convention:** analyzer record indices here start at 0. The newer BeamO study uses Wireshark frame numbers starting at 1; for the same capture, Wireshark frame = analyzer record + 1.
 
 BPM Vision's data-bearing messages span records **4064–4107**; BeamO's span **7122–7140**. The first BPM Vision TLV has length 64 and the final one length 2. BeamO's six TLV lengths are 64, 64, 64, 64, 64, and 30. These lengths are **TLV value lengths**, including the one-byte prefix; they must not be mistaken for JSON/content lengths.
 
 **Important distinctions and limitations:**
 
 - The BPM Vision reconstruction was checked as valid JSON in a private analysis. The public redacted analyzer report alone does not expose or independently prove that JSON structure.
-- The BeamO reconstruction demonstrates chunk aggregation and acknowledgment, **not** a successfully decoded JSON document. Do not invent fields or assume a particular encoding.
+- The original public BeamO analyzer report established aggregation and acknowledgment only (`json_valid: null`). A later private reconstruction successfully parsed the length-stripped content as JSON; non-sensitive excerpts and regional comparisons are published in [BeamO US/EU provisioning](BEAMO_US_EU_PROVISIONING.md). Public redaction still does not expose reconstructed content.
 - A response establishes that an acknowledgment was observed; it does not alone prove that every configuration setting took effect.
 - PacketLogger record numbers are local to each capture, not protocol sequence numbers. Transport-reassembly warnings elsewhere in a capture should be retained and investigated, not silently discarded.
 - Keep raw captures, Wi-Fi credentials, owner/user identifiers, authentication keys, and unredacted configuration payloads out of the public repository.
@@ -409,19 +411,42 @@ The binary representation of display configuration and the mapping of individual
 
 ### Secondary configuration: `0x09C3`
 
-- TLV `0x0145`: four-byte big-endian target ID (`0` = global; nonzero = user ID).
+- TLV `0x0145`: four-byte big-endian target ID (`0` = Guest in BeamO firmware 781; nonzero = user ID; other models require independent verification).
 - TLV `0x09D5`: observed feature setting represented as eight zero bytes, two-byte big-endian feature ID, two-byte big-endian value.
 - TLV `0x0100`: observed empty marker/status.
 
-Primary `ind.ft`, per-user `users[].ft`, and secondary global/per-user `0x09D5` settings are **distinct layers**. A feature may require coordinated settings; do not infer sufficiency from one field.
+Primary `ind.ft`, any per-user `users[].ft`, and secondary target-specific `0x09D5` settings are **distinct layers**. The newly decoded BeamO session documents contain `ind.ft` but no named-user JSON `ft`; per-profile values arrive later in WPP records. No generic device-default/user-override merge rule has been established.
 
 ### Experimentally observed feature behavior
+
+The historical observations below are supplemented by the app-name and firmware mappings that follow. Do not transfer BeamO meanings to a different model without independent evidence.
 
 | Observation | Evidence and limitation |
 |---|---|
 | BPM Vision feature `27` | Enabling in `ind.ft` and global/per-user `0x09D5` corresponded to working ECG and AFib detection in the experiment; individual necessity not isolated |
-| BeamO features `12`, `15`, `27` | Presence/absence in primary and secondary settings affected available functionality in experiments; feature `12` removal was observed to alter regional-style behavior, but its precise regional meaning is unverified |
-| BeamO features `57`, `81`, `82`, `83`–`85`, `133`, `134` | Observed or investigated; do **not** publish speculative feature labels as confirmed definitions |
+| BeamO features `12`, `15`, `27` | Now named ECG Requires Review, SpO2 Medical and ECG SW2. Tag 12 hides waveform/results while recording (owner-observed); it is not ECG authorization. See the firmware-qualified map below. |
+| BeamO features `57`, `81`, `82`, `83`–`85`, `133`, `134` | App names have now been decoded; names and firmware execution support are distinct. See below. |
+
+### BeamO feature IDs resolved from app and firmware analysis
+
+The app's `FeatureID.name` lookup identifies the following codes. Names establish intended labels; firmware traces and owner observations establish behavior separately.
+
+| ID | App name | BeamO qualification |
+|---|---|---|
+| 3 / 15 | SpO2 Non-Medical / SpO2 Medical | Tag 3 takes precedence when present; otherwise tag 15 is checked |
+| 4 / 27 | ECG SW1 / ECG SW2 | Legacy/newer ECG algorithm paths; activation precedence differs by consumer |
+| 12 | ECG Requires Review | Owner-observed: records ECG while hiding waveform and results; not the ECG authorization switch |
+| 49 | Eyes-Closed Mode | Accepted by firmware 781; no BeamO-specific consumer established |
+| 57 | How to Use | Tutorial/help feature |
+| 80 | ECG No Library | Basic ECG activation/fallback mode |
+| 81 | Body Temperature | Temperature activation |
+| 82 | Heart Respiratory Sounds | Stethoscope recording activation |
+| 83 / 84 / 85 | Share Healthcare Professional / Share Family / Share Device | App-level sharing features |
+| 133 / 134 | StethoMe medical / eMurmur medical | Medical stethoscope-analysis labels; exact execution/activation paths unresolved |
+
+Firmware 781's inspected per-profile filter accepts only **3, 12, 15, 27, 49, 80, 81 and 82**. An acknowledgment does not prove that unsupported IDs were retained. A selected user's missing tag does not inherit Guest's value; missing and explicitly off are distinct states. The device-level `body.ind.ft` list is not a proven firmware default/override mechanism.
+
+See [BeamO US/EU provisioning](BEAMO_US_EU_PROVISIONING.md) for capture comparisons, profile-specific settings, precedence rules, firmware addresses and evidence limitations.
 
 Device functionality obtained experimentally is **not evidence of clinical safety, regulatory approval, or equivalent firmware behavior**.
 
@@ -581,7 +606,7 @@ The same numeric value can name a command or TLV; context is mandatory.
 | `0x0103` | Wi-Fi credentials / response | Captured |
 | `0x0104` | Additional Wi-Fi-related operation in BeamO setup | Observed; unresolved |
 | `0x0105` | Battery | Captured/external |
-| `0x0108` | Region | Captured |
+| `0x0108` | Wi-Fi country, separate from medical classification/eligibility | Captured |
 | `0x0109` | Post-Wi-Fi operation | Captured; unresolved |
 | `0x010D` | Session/configuration transfer; payload encoding varies or remains unverified by device | Captured |
 | `0x010F` | Stored/numeric measurement operations | Prior implementation/external |
@@ -601,7 +626,7 @@ The same numeric value can name a command or TLV; context is mandatory.
 | `0x0501` | Time setting | External |
 | `0x09B2` | Setup negotiation/challenge | Captured |
 | `0x09C1` | Setup negotiation continuation | Captured |
-| `0x09C3` | Secondary global/per-user configuration | Experimentally tested |
+| `0x09C3` | Secondary target-specific configuration | Experimentally tested |
 
 Selected TLVs:
 
@@ -615,7 +640,7 @@ Selected TLVs:
 | `0x0110` | General error | Original command and signed error code (external) |
 | `0x0114`–`0x0117` | Measurement family | Action, status, metadata, typed values (external) |
 | `0x0122`, `0x0123`, `0x012A` | `0x0128` | Challenge, response, app probe |
-| `0x0145` | `0x09C3` | Global/user target ID (BE uint32) |
+| `0x0145` | `0x09C3` | Profile target ID (BE uint32); target 0 is Guest on inspected BeamO firmware |
 | `0x0961`, `0x09D3` | `0x09C1` | Negotiation response fields |
 | `0x09C2`, `0x09C3`, `0x09C4` | `0x09B2` | Challenge and device reply fields |
 | `0x09D5` | `0x09C3` | Feature ID/value setting |
@@ -671,7 +696,7 @@ Unknown identifiers must remain visible in decoded reports with raw bytes and so
 ### Highest priority
 
 1. **Validate pending-FIFO semantics under interruption and retry.** The supplied Explorer code establishes `0x0147` retrieval and `0x0148` ACK/advance; verify persistence, duplicate ACK behavior, and whether historical random-access retrieval exists.
-2. Implement complete WPP conversation reassembly, including multi-frame 0x010D configuration transfers and other binary payloads, with packet-level provenance. Do not assume JSON encoding unless independently verified.
+2. Extend the existing WPP stream and multi-frame `0x010D` reassembly to additional binary transfer patterns, preserving packet-level provenance. JSON has been validated for the documented BeamO/BPM Vision transfers; other encodings still require independent verification.
 3. Reconstruct the three official BPM Vision `0x09B2` exchanges, compare the two BLE-only exchanges, and determine the role of the additional pre-ownership exchange without inventing cryptographic semantics.
 4. Decode the complete `0x0101` identification structure for each device and search for secondary firmware fields without hardcoding FW2.
 5. Verify the **reverse** `0x0128` challenge calculation with captured device response bytes.

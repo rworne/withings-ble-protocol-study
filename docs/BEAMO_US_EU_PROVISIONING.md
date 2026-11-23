@@ -6,7 +6,7 @@
 
 This document follows BeamO from BLE connection through identification, authentication, configuration delivery, profile feature settings, and completion. It compares a confirmed US unit with a confirmed EU unit. It describes observed behavior, not an official specification or a universal setup sequence.
 
-No MAC addresses, account/user identifiers, names, association keys, authentication challenges/proofs, session tokens, Wi-Fi credentials, or measurements are included. Packet numbers refer to the private source captures and permit the owner to reproduce the analysis; the captures are not included with this document.
+No MAC addresses, account/user identifiers, names, association keys, authentication challenges/proofs, session tokens, Wi-Fi credentials, or measurements are included. Packet numbers in this document are **one-based Wireshark frame numbers**. The older analyzer/example documents use **zero-based record indices**; for the same capture, frame number = record index + 1. Packet numbers refer to the private source captures and permit the owner to reproduce the analysis; the captures are not included with this document.
 
 ## 1. Evidence and terminology
 

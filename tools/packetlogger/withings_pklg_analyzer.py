@@ -4,7 +4,7 @@ No external dependencies. Sensitive values are redacted by default.
 """
 import argparse, collections, datetime, json, struct, pathlib, re, os
 
-COMMANDS={0x0100:'protocol error/status',0x0101:'device identification',0x0102:'Wi-Fi scan',0x0103:'Wi-Fi credentials',0x0105:'battery information',0x0108:'region',0x0109:'Wi-Fi-related operation (unresolved)',0x010D:'primary JSON configuration',0x010F:'measurement inventory',0x0110:'setup completion',0x0111:'connection reason',0x0112:'setup stage',0x0113:'setup stage',0x011A:'language',0x0128:'challenge-response authentication',0x0131:'unresolved',0x0134:'ownership credentials',0x0147:'next pending binary signal',0x0148:'acknowledge signal / advance queue',0x0501:'set time',0x0502:'clock drift',0x09B2:'initial provisioning negotiation',0x09C1:'negotiation continuation',0x09C3:'secondary configuration'}
+COMMANDS={0x0100:'protocol error/status',0x0101:'device identification',0x0102:'Wi-Fi scan',0x0103:'Wi-Fi credentials',0x0105:'battery information',0x0108:'Wi-Fi country configuration',0x0109:'Wi-Fi-related operation (unresolved)',0x010D:'primary JSON configuration',0x010F:'measurement inventory',0x0110:'setup completion',0x0111:'connection reason',0x0112:'setup stage',0x0113:'setup stage',0x011A:'language',0x0128:'challenge-response authentication',0x0131:'unresolved',0x0134:'ownership credentials',0x0147:'next pending binary signal',0x0148:'acknowledge signal / advance queue',0x0501:'set time',0x0502:'clock drift',0x09B2:'initial provisioning negotiation',0x09C1:'negotiation continuation',0x09C3:'secondary configuration'}
 ATT={0x02:'exchange MTU request',0x03:'exchange MTU response',0x04:'find information request',0x05:'find information response',0x08:'read by type request',0x09:'read by type response',0x0A:'read request',0x0B:'read response',0x10:'read by group request',0x11:'read by group response',0x12:'write request',0x13:'write response',0x1B:'notification',0x1D:'indication',0x1E:'confirmation',0x52:'write command',0x01:'error response'}
 
 def records(path):
@@ -44,7 +44,7 @@ def scrub_json(obj):
         return out
     return obj if isinstance(obj,(int,float,bool)) else '<redacted>'
 
-def tlvs(data, private=False):
+def tlvs(data, private=False, command=None):
     o=0;items=[]
     while o+4<=len(data):
         t=int.from_bytes(data[o:o+2],'big');n=int.from_bytes(data[o+2:o+4],'big');o+=4
@@ -52,7 +52,7 @@ def tlvs(data, private=False):
         val=data[o:o+n];o+=n
         d={'type':f'0x{t:04X}','length':n}
 
-        if t==0x0135:
+        if command==0x0134 and t==0x0135:
             d['meaning']='account identifier and KL'
             if n>=5:
                 kl_length=val[4]
@@ -65,7 +65,7 @@ def tlvs(data, private=False):
                 d['account_id']='<redacted>'
                 d['kl']='<redacted>'
 
-        elif t==0x0136:
+        elif command==0x0134 and t==0x0136:
             d['meaning']='advertiser key'
             if n>=1:
                 key_length=val[0]
@@ -76,12 +76,16 @@ def tlvs(data, private=False):
             if not private:
                 d['advertiser_key']='<redacted>'
 
-        elif t==0x09D5 and n>=12:
+        elif command==0x09C3 and t==0x09D5 and n==12:
             d['feature_id']=int.from_bytes(val[8:10],'big');d['feature_value']=int.from_bytes(val[10:12],'big')
-        elif t==0x0116 and n==23 and private:
+        elif command==0x0147 and t==0x0116 and n==23 and private:
             d['signal_id']=int.from_bytes(val[:4],'big');d['parent_measurement_id']=int.from_bytes(val[19:23],'big')
-        elif t==0x0145 and n==4:
-            d['target']='global (0)' if not any(val) else (int.from_bytes(val,'big') if private else '<user-id-redacted>')
+        elif command==0x09C3 and t==0x0145 and n==4:
+            d['meaning']='configuration target (model-dependent; target 0 is Guest on inspected BeamO)'
+            d['target']=0 if not any(val) else (int.from_bytes(val,'big') if private else '<user-id-redacted>')
+        elif command==0x0148 and t==0x0145 and n==4:
+            d['meaning']='signal identifier'
+            d['signal_id']=int.from_bytes(val,'big') if private else '<signal-id-redacted>'
         elif t==0x0100 and n==0:d['meaning']='empty control/status'
         else:
             if not private: d['value']='<redacted>' if n else ''
@@ -107,7 +111,7 @@ def parse_wpp(value, private=False):
     if private:
         entry['frame_hex']=value.hex()
         entry['payload_hex']=payload.hex()
-    fields,valid=tlvs(payload, private=private)
+    fields,valid=tlvs(payload, private=private, command=cmd)
     entry['tlvs']=fields;entry['tlv_complete']=valid
     return entry
 
