@@ -148,6 +148,10 @@ A quick-reference guide to commands, data structures, authentication, provisioni
 
 [BeamO US/EU provisioning over BLE/WPP](docs/BEAMO_US_EU_PROVISIONING.md) documents the complete captured setup and refresh flows, regional feature lists, per-profile activation, feature-name mappings and firmware-781 precedence rules. It distinguishes Guest settings from inherited defaults and separates ECG Requires Review from user ECG activation.
 
+### BPM Vision: provisioning and feature behavior
+
+[BPM Vision provisioning and feature behavior](docs/BPM_VISION_PROVISIONING_FEATURES.md) covers the setup sequence, association and session transfers, supported device feature tags, per-user ECG selection, and the distinction between BP classification region, Wi-Fi country and language. Three sanitized JSON examples accompany the report, with application feature lists distinguished from device permissions.
+
 ### Body Scan 2: provisioning, features and per-user menus
 
 [Body Scan 2 provisioning and feature behavior](docs/BODY_SCAN_2_PROVISIONING_FEATURES.md) covers configuration layers, WPP transfer formats, accepted feature tags, profile lookup rules, ECG selection and review state, regional behavior, and per-user screen ordering. Four sanitized JSON examples accompany the report. Established behavior, illustrative structures and inferred menu-name mappings are distinguished explicitly.

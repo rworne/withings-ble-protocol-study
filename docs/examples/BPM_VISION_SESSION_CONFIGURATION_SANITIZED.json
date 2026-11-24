@@ -1,0 +1,52 @@
+{
+  "status": 0,
+  "body": {
+    "sessionid": "<REDACTED_SESSION_TOKEN>",
+    "ind": {
+      "stp": 51,
+      "lg": "en_EN",
+      "mit": 60,
+      "mcr": 1,
+      "ft": [
+        57,
+        83,
+        84,
+        85,
+        106,
+        107
+      ]
+    },
+    "sp": {
+      "users": [
+        {
+          "id": 100001,
+          "sn": "A",
+          "fn": "Example User A",
+          "ft": [
+            100,
+            114,
+            135
+          ]
+        },
+        {
+          "id": 100002,
+          "sn": "B",
+          "fn": "Example User B",
+          "ft": [
+            100,
+            105
+          ]
+        },
+        {
+          "id": 100003,
+          "sn": "C",
+          "fn": "Example User C",
+          "ft": [
+            100,
+            105
+          ]
+        }
+      ]
+    }
+  }
+}
