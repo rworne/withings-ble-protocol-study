@@ -1,0 +1,144 @@
+{
+  "status": 0,
+  "body": {
+    "device_features": [
+      {
+        "id": 3,
+        "active": true
+      },
+      {
+        "id": 4,
+        "active": false
+      },
+      {
+        "id": 12,
+        "active": true
+      },
+      {
+        "id": 34,
+        "active": true
+      },
+      {
+        "id": 30,
+        "active": true
+      },
+      {
+        "id": 50,
+        "active": false
+      },
+      {
+        "id": 67,
+        "active": false
+      },
+      {
+        "id": 87,
+        "active": true
+      },
+      {
+        "id": 61,
+        "active": true
+      }
+    ],
+    "user_features": [
+      {
+        "userid": 100001,
+        "featureids": [
+          {
+            "id": 3,
+            "active": true
+          },
+          {
+            "id": 4,
+            "active": true
+          },
+          {
+            "id": 34,
+            "active": true
+          },
+          {
+            "id": 30,
+            "active": true
+          },
+          {
+            "id": 50,
+            "active": false
+          },
+          {
+            "id": 67,
+            "active": false
+          },
+          {
+            "id": 61,
+            "active": true
+          }
+        ]
+      },
+      {
+        "userid": 100002,
+        "featureids": [
+          {
+            "id": 3,
+            "active": true
+          },
+          {
+            "id": 4,
+            "active": true
+          },
+          {
+            "id": 34,
+            "active": true
+          },
+          {
+            "id": 30,
+            "active": true
+          },
+          {
+            "id": 50,
+            "active": false
+          },
+          {
+            "id": 67,
+            "active": false
+          },
+          {
+            "id": 61,
+            "active": true
+          }
+        ]
+      },
+      {
+        "userid": 100003,
+        "featureids": [
+          {
+            "id": 3,
+            "active": true
+          },
+          {
+            "id": 4,
+            "active": true
+          },
+          {
+            "id": 34,
+            "active": true
+          },
+          {
+            "id": 30,
+            "active": true
+          },
+          {
+            "id": 50,
+            "active": false
+          },
+          {
+            "id": 67,
+            "active": false
+          },
+          {
+            "id": 61,
+            "active": true
+          }
+        ]
+      }
+    ]
+  }
+}

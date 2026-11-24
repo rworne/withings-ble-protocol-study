@@ -1,0 +1,9 @@
+{
+  "status": 0,
+  "body": {
+    "accountid": 200001,
+    "associationid": 300001,
+    "kl": "<REDACTED_ASSOCIATION_KEY>",
+    "advertise_key": "<REDACTED_ADVERTISER_KEY>"
+  }
+}

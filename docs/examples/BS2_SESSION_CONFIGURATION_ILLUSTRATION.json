@@ -1,0 +1,28 @@
+{
+  "status": 0,
+  "body": {
+    "sessionid": "<REDACTED_SESSION_TOKEN>",
+    "ind": {
+      "mcr": 1
+    },
+    "sp": {
+      "users": [
+        {
+          "id": 100001,
+          "fn": "Example User A",
+          "sn": "A"
+        },
+        {
+          "id": 100002,
+          "fn": "Example User B",
+          "sn": "B"
+        },
+        {
+          "id": 100003,
+          "fn": "Example User C",
+          "sn": "C"
+        }
+      ]
+    }
+  }
+}
