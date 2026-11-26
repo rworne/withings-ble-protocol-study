@@ -183,7 +183,7 @@ In particular, the following remain unverified:
 
 Successful authentication and measurement retrieval should therefore be distinguished from the ability to establish or modify an account association.
 
-See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md) for additional details.
+See [Body Scan 2 TLS Authentication](BODY_SCAN_2.md) for additional details.
 
 #### BPM Connect: `0x0128` authentication observations
 

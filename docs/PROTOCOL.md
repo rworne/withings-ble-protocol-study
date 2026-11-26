@@ -228,7 +228,7 @@ These results demonstrate authentication using an existing valid certificate. Th
 
 The requirements for establishing a completely new account association remain unresolved.
 
-See [Body Scan 2 TLS Authentication](Body_Scan_2_TLS_Authentication.md) for additional experimental details.
+See [Body Scan 2 TLS Authentication](BODY_SCAN_2.md) for additional experimental details.
 
 ### Cross-device authentication observations
 

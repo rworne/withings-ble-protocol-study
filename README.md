@@ -70,7 +70,7 @@ These results establish that existing authentication material can be reused for 
 
 The complete certificate validation policy and requirements for independent initial provisioning remain unresolved.
 
-See [Body Scan 2 TLS Authentication](docs/Body_Scan_2_TLS_Authentication.md).
+See [Body Scan 2 TLS Authentication](docs/BODY_SCAN_2.md).
 
 ### Device Provisioning
 
@@ -152,9 +152,9 @@ A quick-reference guide to commands, data structures, authentication, provisioni
 
 [BPM Vision provisioning and feature behavior](docs/BPM_VISION_PROVISIONING_FEATURES.md) covers the setup sequence, association and session transfers, supported device feature tags, per-user ECG selection, and the distinction between BP classification region, Wi-Fi country and language. Three sanitized JSON examples accompany the report, with application feature lists distinguished from device permissions.
 
-### Body Scan 2: provisioning, features and per-user menus
+### Body Scan 2: consolidated reference
 
-[Body Scan 2 provisioning and feature behavior](docs/BODY_SCAN_2_PROVISIONING_FEATURES.md) covers configuration layers, WPP transfer formats, accepted feature tags, profile lookup rules, ECG selection and review state, regional behavior, and per-user screen ordering. Four sanitized JSON examples accompany the report. Established behavior, illustrative structures and inferred menu-name mappings are distinguished explicitly.
+[Body Scan 2: protocol, provisioning, menus and firmware](docs/BODY_SCAN_2.md) is the consolidated reference for TLS authentication, ordered setup, association and session transfers, device/user features, per-user menus, authenticated measurement retrieval, firmware approval and updates, ECG result codes, and revision-specific BIA/calibration findings. JSON examples are inline. Version scope and remaining gaps are explicit; proprietary BIA equations, credentials and other secrets are not published.
 
 ### Body Scan 2: authenticated local measurement retrieval (October 2026)
 

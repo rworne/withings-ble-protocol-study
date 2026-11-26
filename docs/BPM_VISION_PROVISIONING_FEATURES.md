@@ -4,7 +4,7 @@
 
 **Scope:** BPM Vision firmware 221, its WPP setup sequence, device/user configuration and region handling.
 
-**Related:** [Body Scan 2 provisioning](BODY_SCAN_2_PROVISIONING_FEATURES.md), [WPP command reference](COMMAND_REFERENCE.md), [BeamO US/EU provisioning](BEAMO_US_EU_PROVISIONING.md).
+**Related:** [Body Scan 2 provisioning](BODY_SCAN_2.md), [WPP command reference](COMMAND_REFERENCE.md), [BeamO US/EU provisioning](BEAMO_US_EU_PROVISIONING.md).
 
 This document reports independent interoperability findings. Examples omit or replace identifying and confidential values. There are no real account/user identifiers, user names, MAC addresses, credentials, download-access tokens or personal measurements. Numeric identity aliases are synthetic.
 
